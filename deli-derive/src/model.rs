@@ -101,12 +101,14 @@ impl Model {
         let get_fn = field_context.get_fn()?;
         let add_fn = field_context.add_fn()?;
         let update_fn = field_context.update_fn()?;
+        let delete_fn = field_context.delete_fn()?;
 
         Ok(quote! {
             impl #store_name {
                 #get_fn
                 #add_fn
                 #update_fn
+                #delete_fn
             }
         })
     }

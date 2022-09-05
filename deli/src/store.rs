@@ -6,6 +6,7 @@ use serde_wasm_bindgen::Serializer;
 
 use crate::{Error, Model};
 
+/// An object store in indexed db
 pub struct Store<M>
 where
     M: Model,
@@ -60,7 +61,8 @@ where
     /// Deletes value with specified key
     pub async fn delete<K>(&self, key: &K) -> Result<(), Error>
     where
-        K: Serialize,
+        M::Key: Borrow<K>,
+        K: Serialize + ?Sized,
     {
         let key = key.serialize(&Serializer::json_compatible())?;
         self.store.delete(key).await.map_err(Into::into)

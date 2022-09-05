@@ -41,7 +41,7 @@ pub fn fn_signature(
         let generic = get_generic_param(field_name)?;
 
         let field_signature = quote! { #field_name : & #generic };
-        let where_clause = quote! { #field_type: ::core::borrow::Borrow<#generic>, #generic: ::deli::serde::Serialize + ?::core::marker::Sized };
+        let where_clause = quote! { #field_type: ::core::borrow::Borrow<#generic>, #generic: ::deli::reexports::serde::Serialize + ?::core::marker::Sized };
 
         signatures.push(field_signature);
         where_clauses.push(where_clause);
@@ -71,7 +71,7 @@ pub fn fields_json(fields: &[&ModelField]) -> TokenStream {
     }
 
     quote! {
-        ::deli::serde_json::json!({
+        ::deli::reexports::serde_json::json!({
             #(#result),*
         })
     }

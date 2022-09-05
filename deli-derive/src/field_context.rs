@@ -36,7 +36,7 @@ impl<'a> FieldContext<'a> {
 
         for field in self.indexes.iter() {
             let name = field.name();
-            let key_path = quote! { ::deli::idb::KeyPath::new_single(#name) };
+            let key_path = quote! { ::deli::reexports::idb::KeyPath::new_single(#name) };
 
             let index_params = if field.unique.is_present() || field.multi_entry.is_present() {
                 let unique = if field.unique.is_present() {
@@ -53,7 +53,7 @@ impl<'a> FieldContext<'a> {
 
                 quote! {
                     Some({
-                        let mut params = ::deli::idb::IndexParams::new();
+                        let mut params = ::deli::reexports::idb::IndexParams::new();
                         #unique
                         #multi_entry
                         params
@@ -135,11 +135,24 @@ impl<'a> FieldContext<'a> {
         })
     }
 
+    /// Returns token stream for delete function
+    pub fn delete_fn(&self) -> Result<TokenStream, Error> {
+        let (generics, signature, where_clause) = fn_signature(&[self.key])?;
+        let key_ident = self.key.ident();
+
+        Ok(quote! {
+            pub async fn delete<#generics>(&self, #signature) -> Result<(), ::deli::Error> #where_clause {
+                self.store.delete(#key_ident).await
+            }
+        })
+    }
+
     /// Returns the token stream for object store params
     fn store_params(&self) -> TokenStream {
         let name = self.key.name();
 
-        let key_path = quote! { params.key_path(Some(::deli::idb::KeyPath::new_single(#name))); };
+        let key_path =
+            quote! { params.key_path(Some(::deli::reexports::idb::KeyPath::new_single(#name))); };
 
         let auto_increment = if self.key.auto_increment.is_present() {
             quote! { params.auto_increment(true); }
@@ -148,7 +161,7 @@ impl<'a> FieldContext<'a> {
         };
 
         quote! {{
-            let mut params = ::deli::idb::ObjectStoreParams::new();
+            let mut params = ::deli::reexports::idb::ObjectStoreParams::new();
             #key_path
             #auto_increment
             params

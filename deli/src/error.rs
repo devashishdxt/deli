@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+/// Error type for [`deli`](crate) crate
 #[derive(Debug, Error)]
 pub enum Error {
     /// Indexed DB error

@@ -2,7 +2,7 @@ use idb::{Database as IdbDatabase, Error, Factory, VersionChangeEvent};
 
 use crate::{Model, TransactionBuilder};
 
-/// [`Datavase`] provides connection to an indexed db database
+/// [`Database`] provides connection to an indexed db database
 #[derive(Debug)]
 pub struct Database {
     database: IdbDatabase,
