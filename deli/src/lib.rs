@@ -9,13 +9,13 @@ pub mod reexports;
 mod store;
 mod transaction;
 
-pub use idb::VersionChangeEvent;
+pub use idb::{CursorDirection as Direction, VersionChangeEvent};
 
 pub use self::{
     database::{Database, DatabaseBuilder},
     error::Error,
     model::Model,
-    store::Store,
+    store::{KeyRange, Store},
     transaction::{Transaction, TransactionBuilder},
 };
 

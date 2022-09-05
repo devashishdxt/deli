@@ -97,7 +97,7 @@ impl<'a> FieldContext<'a> {
     /// Returns token stream for get function
     pub fn get_fn(&self) -> Result<TokenStream, Error> {
         let (generics, signature, where_clause) = fn_signature(&[self.key])?;
-        let ident = &self.ident;
+        let ident = self.ident;
         let key_ident = self.key.ident();
 
         Ok(quote! {
@@ -105,6 +105,90 @@ impl<'a> FieldContext<'a> {
                 self.store.get(#key_ident).await
             }
         })
+    }
+
+    /// Returns token stream for get_all function
+    pub fn get_all_fn(&self) -> TokenStream {
+        let ident = self.ident;
+        let key_type = &self.key.ty;
+
+        quote! {
+            pub async fn get_all<'deli, Key>(
+                &self,
+                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
+                limit: ::core::option::Option<u32>
+            ) -> ::core::result::Result<::std::vec::Vec<#ident>, ::deli::Error>
+            where
+                #key_type: ::core::borrow::Borrow<Key>,
+                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
+            {
+                self.store.get_all(query, limit).await
+            }
+        }
+    }
+
+    /// Returns token stream for get_all_keys function
+    pub fn get_all_keys_fn(&self) -> TokenStream {
+        let ident = self.ident;
+        let key_type = &self.key.ty;
+
+        quote! {
+            pub async fn get_all_keys<'deli, Key>(
+                &self,
+                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
+                limit: ::core::option::Option<u32>
+            ) -> ::core::result::Result<::std::vec::Vec<#key_type>, ::deli::Error>
+            where
+                #key_type: ::core::borrow::Borrow<Key>,
+                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
+            {
+                self.store.get_all_keys(query, limit).await
+            }
+        }
+    }
+
+    /// Returns token stream for scan function
+    pub fn scan_fn(&self) -> TokenStream {
+        let ident = self.ident;
+        let key_type = &self.key.ty;
+
+        quote! {
+            pub async fn scan<'deli, Key>(
+                &self,
+                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
+                direction: ::core::option::Option<::deli::Direction>,
+                limit: ::core::option::Option<u32>,
+                offset: ::core::option::Option<u32>,
+            ) -> ::core::result::Result<::std::vec::Vec<#ident>, ::deli::Error>
+            where
+                #key_type: ::core::borrow::Borrow<Key>,
+                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
+            {
+                self.store.scan(query, direction, limit, offset).await
+            }
+        }
+    }
+
+    /// Returns token stream for scan_keys function
+    pub fn scan_keys_fn(&self) -> TokenStream {
+        let ident = self.ident;
+        let key_type = &self.key.ty;
+
+        quote! {
+            pub async fn scan_keys<'deli, Key>(
+                &self,
+                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
+                direction: ::core::option::Option<::deli::Direction>,
+                limit: ::core::option::Option<u32>,
+                offset: ::core::option::Option<u32>,
+            ) -> ::core::result::Result<::std::vec::Vec<#key_type>, ::deli::Error>
+            where
+                #key_type: ::core::borrow::Borrow<Key>,
+                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
+            {
+                self.store.scan_keys(query, direction, limit, offset).await
+            }
+        }
     }
 
     /// Returns token stream for add function
@@ -136,15 +220,22 @@ impl<'a> FieldContext<'a> {
     }
 
     /// Returns token stream for delete function
-    pub fn delete_fn(&self) -> Result<TokenStream, Error> {
-        let (generics, signature, where_clause) = fn_signature(&[self.key])?;
-        let key_ident = self.key.ident();
+    pub fn delete_fn(&self) -> TokenStream {
+        let ident = self.ident;
+        let key_type = &self.key.ty;
 
-        Ok(quote! {
-            pub async fn delete<#generics>(&self, #signature) -> Result<(), ::deli::Error> #where_clause {
-                self.store.delete(#key_ident).await
+        quote! {
+            pub async fn delete<'deli, Key>(
+                &self,
+                query: ::deli::KeyRange<'deli, #ident, Key>
+            ) -> ::core::result::Result<(), ::deli::Error>
+            where
+                #key_type: ::core::borrow::Borrow<Key>,
+                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
+            {
+                self.store.delete(query).await
             }
-        })
+        }
     }
 
     /// Returns the token stream for object store params

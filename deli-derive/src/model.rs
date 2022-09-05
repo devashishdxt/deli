@@ -41,20 +41,14 @@ impl Model {
             Err(err) => return err.write_errors(),
         };
 
-        let impl_model = self.impl_model(&field_context);
-        let impl_db = match self.impl_db(&field_context) {
-            Ok(impl_db) => impl_db,
-            Err(err) => return err.write_errors(),
-        };
-
-        quote! {
-            #impl_model
-            #impl_db
+        match self.impl_model(&field_context) {
+            Ok(impl_model) => impl_model,
+            Err(err) => err.write_errors(),
         }
     }
 
     /// Returns the token stream for implementing `Model` trait
-    fn impl_model(&self, field_context: &FieldContext<'_>) -> TokenStream {
+    fn impl_model(&self, field_context: &FieldContext<'_>) -> Result<TokenStream, Error> {
         let ident = &self.ident;
         let model_name = self.model_name();
         let vis = &self.vis;
@@ -67,7 +61,16 @@ impl Model {
 
         let store_name = Ident::new(&format!("{}Store", self.ident), self.ident.span());
 
-        quote! {
+        let get_fn = field_context.get_fn()?;
+        let get_all_fn = field_context.get_all_fn();
+        let get_all_keys_fn = field_context.get_all_keys_fn();
+        let scan_fn = field_context.scan_fn();
+        let scan_keys_fn = field_context.scan_keys_fn();
+        let add_fn = field_context.add_fn()?;
+        let update_fn = field_context.update_fn()?;
+        let delete_fn = field_context.delete_fn();
+
+        Ok(quote! {
             impl #impl_generics ::deli::Model for #ident #ty_generics #where_clause {
                 const NAME: &'static str = #model_name;
 
@@ -91,21 +94,13 @@ impl Model {
                     Self { store }
                 }
             }
-        }
-    }
 
-    /// Returns the token stream for implementing `ModelDb` struct
-    fn impl_db(&self, field_context: &FieldContext<'_>) -> Result<TokenStream, Error> {
-        let store_name = Ident::new(&format!("{}Store", self.ident), self.ident.span());
-
-        let get_fn = field_context.get_fn()?;
-        let add_fn = field_context.add_fn()?;
-        let update_fn = field_context.update_fn()?;
-        let delete_fn = field_context.delete_fn()?;
-
-        Ok(quote! {
             impl #store_name {
                 #get_fn
+                #get_all_fn
+                #get_all_keys_fn
+                #scan_fn
+                #scan_keys_fn
                 #add_fn
                 #update_fn
                 #delete_fn
