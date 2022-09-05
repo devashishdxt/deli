@@ -1,7 +1,7 @@
 use darling::{error::Accumulator, Error};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{spanned::Spanned, Ident};
+use syn::Ident;
 
 use crate::{
     model_field::ModelField,
@@ -11,6 +11,7 @@ use crate::{
 /// Context for storing keys and indexes of object store
 #[derive(Debug)]
 pub struct FieldContext<'a> {
+    pub ident: &'a Ident,
     pub key: &'a ModelField,
     pub indexes: Vec<&'a ModelField>,
     pub creation_fields: Vec<&'a ModelField>,
@@ -19,8 +20,8 @@ pub struct FieldContext<'a> {
 
 impl<'a> FieldContext<'a> {
     /// Creates a new field context
-    pub fn new(fields: &'a [ModelField]) -> Result<Self, Error> {
-        let mut builder = FieldContextBuilder::default();
+    pub fn new(ident: &'a Ident, fields: &'a [ModelField]) -> Result<Self, Error> {
+        let mut builder = FieldContextBuilder::new(ident);
 
         for field in fields {
             builder.with_field(field);
@@ -147,8 +148,9 @@ impl<'a> FieldContext<'a> {
 }
 
 /// Builder for field context
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct FieldContextBuilder<'a> {
+    ident: &'a Ident,
     key: Option<&'a ModelField>,
     indexes: Vec<&'a ModelField>,
     creation_fields: Vec<&'a ModelField>,
@@ -157,16 +159,25 @@ struct FieldContextBuilder<'a> {
 }
 
 impl<'a> FieldContextBuilder<'a> {
+    fn new(ident: &'a Ident) -> Self {
+        Self {
+            ident,
+            key: Default::default(),
+            indexes: Default::default(),
+            creation_fields: Default::default(),
+            updation_fields: Default::default(),
+            accumulator: Default::default(),
+        }
+    }
+
     /// Adds a field to builder
     fn with_field(&mut self, field: &'a ModelField) {
         if field.key.is_present() || field.auto_increment.is_present() {
             match self.key {
-                Some(key) => {
-                    let span = key.ident.span().join(field.ident.span()).unwrap(); // Both fields cannot be in different files
-
-                    self.accumulator
-                        .push(Error::custom("multiple keys present").with_span(&span))
-                }
+                Some(_) => self.accumulator.push(
+                    Error::custom(format!("multiple keys defined for model {}", self.ident))
+                        .with_span(&self.ident.span()),
+                ),
                 None => self.key = Some(field),
             }
         } else if field.index.is_present()
@@ -186,8 +197,10 @@ impl<'a> FieldContextBuilder<'a> {
     /// Builds field context
     fn build(mut self) -> Result<FieldContext<'a>, Error> {
         if self.key.is_none() {
-            self.accumulator
-                .push(Error::custom("no key defined for model"));
+            self.accumulator.push(
+                Error::custom(format!("no key defined for model {}", self.ident))
+                    .with_span(&self.ident.span()),
+            );
         }
 
         self.accumulator.finish()?;
@@ -195,6 +208,7 @@ impl<'a> FieldContextBuilder<'a> {
         let key = self.key.unwrap(); // We just checked this value above and pushed the error in accumulator
 
         Ok(FieldContext {
+            ident: self.ident,
             key,
             indexes: self.indexes,
             creation_fields: self.creation_fields,

@@ -36,7 +36,7 @@ impl Model {
 
     /// Builds the output of derive macro
     pub fn expand(&self) -> TokenStream {
-        let field_context = match FieldContext::new(self.fields()) {
+        let field_context = match FieldContext::new(&self.ident, self.fields()) {
             Ok(field_context) => field_context,
             Err(err) => return err.write_errors(),
         };
