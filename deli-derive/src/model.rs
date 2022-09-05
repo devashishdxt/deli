@@ -57,6 +57,7 @@ impl Model {
     fn impl_model(&self, field_context: &FieldContext<'_>) -> TokenStream {
         let ident = &self.ident;
         let model_name = self.model_name();
+        let vis = &self.vis;
 
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
@@ -64,11 +65,15 @@ impl Model {
         let object_store = field_context.object_store();
         let indexes = field_context.indexes();
 
+        let store_name = Ident::new(&format!("{}Store", self.ident), self.ident.span());
+
         quote! {
             impl #impl_generics ::deli::Model for #ident #ty_generics #where_clause {
                 const NAME: &'static str = #model_name;
 
                 type Key = #key_type;
+
+                type Store = #store_name;
 
                 fn handle_upgrade(event: ::deli::VersionChangeEvent) {
                     let database = event.database().unwrap();
@@ -76,36 +81,30 @@ impl Model {
                     #(#indexes)*
                 }
             }
+
+            #vis struct #store_name {
+                store: ::deli::Store<#ident>,
+            }
+
+            impl ::core::convert::From<::deli::Store<#ident>> for #store_name {
+                fn from(store: ::deli::Store<#ident>) -> Self {
+                    Self { store }
+                }
+            }
         }
     }
 
     /// Returns the token stream for implementing `ModelDb` struct
     fn impl_db(&self, field_context: &FieldContext<'_>) -> Result<TokenStream, Error> {
-        let ident = &self.ident;
-        let transaction_name = Ident::new(&format!("{}Transaction", self.ident), self.ident.span());
-        let vis = &self.vis;
+        let store_name = Ident::new(&format!("{}Store", self.ident), self.ident.span());
 
-        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
-
-        let add_fn = field_context.add_fn(ident)?;
-        let update_fn = field_context.update_fn(ident)?;
+        let get_fn = field_context.get_fn()?;
+        let add_fn = field_context.add_fn()?;
+        let update_fn = field_context.update_fn()?;
 
         Ok(quote! {
-            impl #impl_generics #ident #ty_generics #where_clause {
-                pub fn with_transaction(transaction: &::deli::Transaction) -> #transaction_name<'_> {
-                    #transaction_name ::new(transaction)
-                }
-            }
-
-            #vis struct #transaction_name <'deli> {
-                transaction: &'deli ::deli::Transaction,
-            }
-
-            impl<'deli> #transaction_name <'deli> {
-                pub fn new(transaction: &'deli ::deli::Transaction) -> Self {
-                    Self { transaction: transaction }
-                }
-
+            impl #store_name {
+                #get_fn
                 #add_fn
                 #update_fn
             }

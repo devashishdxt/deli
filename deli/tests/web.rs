@@ -20,8 +20,8 @@ async fn test_db_creation_and_deletion() {
         .await
         .expect("database");
 
-    assert_eq!(database.database().name(), "sample");
-    assert_eq!(database.database().version().unwrap(), 1);
+    assert_eq!(database.name(), "sample");
+    assert_eq!(database.version().unwrap(), 1);
 
     database.close();
 
@@ -42,6 +42,7 @@ async fn test_model() {
         .expect("transaction");
 
     let id = Employee::with_transaction(&transaction)
+        .unwrap()
         .add("Devashish", "devashishdxt@gmail.com", &32)
         .await
         .expect("employee add");
@@ -49,6 +50,25 @@ async fn test_model() {
     assert_eq!(id, 1);
 
     transaction.commit().await.expect("transaction commit");
+
+    let transaction = database
+        .transaction()
+        .with_model::<Employee>()
+        .build()
+        .expect("transaction");
+
+    let employee = Employee::with_transaction(&transaction)
+        .unwrap()
+        .get(&id)
+        .await
+        .expect("option employee")
+        .expect("employee");
+
+    assert_eq!(employee.name, "Devashish");
+    assert_eq!(employee.email, "devashishdxt@gmail.com");
+    assert_eq!(employee.age, 32);
+
+    transaction.done().await.expect("transaction done");
 
     database.close();
     Database::delete("sample").await.expect("delete");

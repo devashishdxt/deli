@@ -32,12 +32,6 @@ impl Transaction {
         self.transaction.abort().await.map_err(Into::into)
     }
 
-    /// Returns the inner [`IdbTransaction`] handle
-    #[doc(hidden)]
-    pub fn transaction(&self) -> &IdbTransaction {
-        &self.transaction
-    }
-
     /// Returns the stores in transaction
     pub fn store_names(&self) -> &[&'static str] {
         &self.stores

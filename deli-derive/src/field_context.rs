@@ -94,8 +94,21 @@ impl<'a> FieldContext<'a> {
         }
     }
 
+    /// Returns token stream for get function
+    pub fn get_fn(&self) -> Result<TokenStream, Error> {
+        let (generics, signature, where_clause) = fn_signature(&[self.key])?;
+        let ident = &self.ident;
+        let key_ident = self.key.ident();
+
+        Ok(quote! {
+            pub async fn get<#generics>(&self, #signature) -> Result<::core::option::Option<#ident>, ::deli::Error> #where_clause {
+                self.store.get(#key_ident).await
+            }
+        })
+    }
+
     /// Returns token stream for add function
-    pub fn add_fn(&self, ident: &Ident) -> Result<TokenStream, Error> {
+    pub fn add_fn(&self) -> Result<TokenStream, Error> {
         let (generics, signature, where_clause) = fn_signature(&self.creation_fields)?;
         let key_type = &self.key.ty;
         let fields_json = fields_json(&self.creation_fields);
@@ -103,15 +116,13 @@ impl<'a> FieldContext<'a> {
         Ok(quote! {
             pub async fn add<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
                 let value = #fields_json;
-                let store = self.transaction.store::<#ident>()?;
-
-                store.add(&value).await
+                self.store.add(&value).await
             }
         })
     }
 
     /// Returns token stream for update function
-    pub fn update_fn(&self, ident: &Ident) -> Result<TokenStream, Error> {
+    pub fn update_fn(&self) -> Result<TokenStream, Error> {
         let (generics, signature, where_clause) = fn_signature(&self.updation_fields)?;
         let key_type = &self.key.ty;
         let fields_json = fields_json(&self.updation_fields);
@@ -119,9 +130,7 @@ impl<'a> FieldContext<'a> {
         Ok(quote! {
             pub async fn update<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
                 let value = #fields_json;
-                let store = self.transaction.store::<#ident>()?;
-
-                store.update(&value).await
+                self.store.update(&value).await
             }
         })
     }

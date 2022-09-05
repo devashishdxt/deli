@@ -19,6 +19,16 @@ impl Database {
         DatabaseBuilder::new(name, version)
     }
 
+    /// Returns the name of database
+    pub fn name(&self) -> String {
+        self.database.name()
+    }
+
+    /// Returns the version of database
+    pub fn version(&self) -> Result<u32, Error> {
+        self.database.version().map_err(Into::into)
+    }
+
     /// Returns a transaction builder for creating transactions on database
     pub fn transaction(&self) -> TransactionBuilder {
         TransactionBuilder::new(self)
@@ -36,8 +46,7 @@ impl Database {
     }
 
     /// Returns the inner [`IdbDatabase`] handle
-    #[doc(hidden)]
-    pub fn database(&self) -> &IdbDatabase {
+    pub(crate) fn database(&self) -> &IdbDatabase {
         &self.database
     }
 }

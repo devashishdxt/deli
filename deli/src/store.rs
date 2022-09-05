@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{borrow::Borrow, marker::PhantomData};
 
 use idb::ObjectStore;
 use serde::Serialize;
@@ -27,7 +27,11 @@ where
     }
 
     /// Gets value for specifier key
-    pub async fn get(&self, key: &M::Key) -> Result<Option<M>, Error> {
+    pub async fn get<K>(&self, key: &K) -> Result<Option<M>, Error>
+    where
+        M::Key: Borrow<K>,
+        K: Serialize + ?Sized,
+    {
         let key = key.serialize(&Serializer::json_compatible())?;
         let js_value = self.store.get(key).await?;
         serde_wasm_bindgen::from_value(js_value).map_err(Into::into)
@@ -44,7 +48,7 @@ where
     }
 
     /// Updates a value in the store returning its key
-    pub async fn update<V>(self, value: &V) -> Result<M::Key, Error>
+    pub async fn update<V>(&self, value: &V) -> Result<M::Key, Error>
     where
         V: Serialize,
     {
