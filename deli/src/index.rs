@@ -1,125 +1,69 @@
-use std::{borrow::Borrow, convert::TryInto, marker::PhantomData};
+use std::{borrow::Borrow, marker::PhantomData};
 
-use idb::{ObjectStore, Query};
+use idb::Query;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_wasm_bindgen::Serializer;
 
-use crate::{Direction, Error, Index, KeyRange, Model};
+use crate::{Direction, Error, KeyRange, Model};
 
-/// An object store in indexed db (with add and update function)
-pub struct NonGenericStore<'a, M>
+/// An index in indexed db object store
+pub struct Index<M, T>
 where
     M: Model,
+    T: DeserializeOwned,
 {
-    store: &'a ObjectStore,
-    _generics: PhantomData<M>,
+    index: idb::Index,
+    _generics_model: PhantomData<M>,
+    _generics_index_type: PhantomData<T>,
 }
 
-impl<'a, M> NonGenericStore<'a, M>
+impl<M, T> Index<M, T>
 where
     M: Model,
+    T: Serialize + DeserializeOwned,
 {
-    /// Creates a new instance of store
-    pub(crate) fn new(store: &'a ObjectStore) -> Self {
+    /// Creates a new instance of index
+    pub(crate) fn new(index: idb::Index) -> Self {
         Self {
-            store,
-            _generics: Default::default(),
+            index,
+            _generics_model: Default::default(),
+            _generics_index_type: Default::default(),
         }
-    }
-
-    /// Adds a value to the store returning its key
-    pub async fn add<V>(&self, value: &V) -> Result<M::Key, Error>
-    where
-        V: Serialize,
-    {
-        let value = value.serialize(&Serializer::json_compatible())?;
-        let js_key = self.store.add(&value, None).await?;
-        serde_wasm_bindgen::from_value(js_key).map_err(Into::into)
-    }
-
-    /// Updates a value in the store returning its key
-    pub async fn update<V>(&self, value: &V) -> Result<M::Key, Error>
-    where
-        V: Serialize,
-    {
-        let value = value.serialize(&Serializer::json_compatible())?;
-        let js_key = self.store.put(&value, None).await?;
-        serde_wasm_bindgen::from_value(js_key).map_err(Into::into)
-    }
-
-    /// Returns object store index with given name and data type
-    pub fn index<T>(&self, name: &str) -> Result<Index<M, T>, Error>
-    where
-        T: Serialize + DeserializeOwned,
-    {
-        let index = self.store.index(name)?;
-        Ok(Index::new(index))
-    }
-}
-
-/// An object store in indexed db
-pub struct Store<M>
-where
-    M: Model,
-{
-    store: ObjectStore,
-    _generics: PhantomData<M>,
-}
-
-impl<M> Store<M>
-where
-    M: Model,
-{
-    /// Creates a new instance of store
-    pub(crate) fn new(store: ObjectStore) -> Self {
-        Self {
-            store,
-            _generics: Default::default(),
-        }
-    }
-
-    /// Returns an add and update enabled store
-    #[doc(hidden)]
-    pub fn non_generic_store(&self) -> NonGenericStore<'_, M> {
-        NonGenericStore::new(&self.store)
     }
 
     /// Counts all the values from store with given query and limit
-    pub async fn count<'a, K>(
-        &self,
-        query: Option<KeyRange<'a, M, M::Key, K>>,
-    ) -> Result<u32, Error>
+    pub async fn count<'a, K>(&self, query: Option<KeyRange<'a, M, T, K>>) -> Result<u32, Error>
     where
-        M::Key: Borrow<K>,
+        T: Borrow<K>,
         K: Serialize + ?Sized,
     {
         let query = query.map(TryInto::try_into).transpose()?;
-        self.store.count(query).await.map_err(Into::into)
+        self.index.count(query).await.map_err(Into::into)
     }
 
     /// Gets value for specifier key
     pub async fn get<K>(&self, key: &K) -> Result<Option<M>, Error>
     where
-        M::Key: Borrow<K>,
+        T: Borrow<K>,
         K: Serialize + ?Sized,
     {
         let key = key.serialize(&Serializer::json_compatible())?;
-        let js_value = self.store.get(key).await?;
+        let js_value = self.index.get(key).await?;
         serde_wasm_bindgen::from_value(js_value).map_err(Into::into)
     }
 
     /// Gets all the values from store with given query and limit
     pub async fn get_all<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, M::Key, K>>,
+        query: Option<KeyRange<'a, M, T, K>>,
         limit: Option<u32>,
     ) -> Result<Vec<M>, Error>
     where
-        M::Key: Borrow<K>,
+        T: Borrow<K>,
         K: Serialize + ?Sized,
     {
         let query = query.map(TryInto::try_into).transpose()?;
-        let js_values = self.store.get_all(query, limit).await?;
+        let js_values = self.index.get_all(query, limit).await?;
 
         js_values
             .into_iter()
@@ -130,15 +74,15 @@ where
     /// Gets all the keys from store with given query and limit
     pub async fn get_all_keys<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, M::Key, K>>,
+        query: Option<KeyRange<'a, M, T, K>>,
         limit: Option<u32>,
-    ) -> Result<Vec<M::Key>, Error>
+    ) -> Result<Vec<T>, Error>
     where
-        M::Key: Borrow<K>,
+        T: Borrow<K>,
         K: Serialize + ?Sized,
     {
         let query = query.map(TryInto::try_into).transpose()?;
-        let js_keys = self.store.get_all_keys(query, limit).await?;
+        let js_keys = self.index.get_all_keys(query, limit).await?;
 
         js_keys
             .into_iter()
@@ -149,17 +93,17 @@ where
     /// Scans the store for values
     pub async fn scan<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, M::Key, K>>,
+        query: Option<KeyRange<'a, M, T, K>>,
         direction: Option<Direction>,
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<M>, Error>
     where
-        M::Key: Borrow<K>,
+        T: Borrow<K>,
         K: Serialize + ?Sized,
     {
         let query: Option<Query> = query.map(TryInto::try_into).transpose()?;
-        let mut cursor = self.store.open_cursor(query, direction).await?;
+        let mut cursor = self.index.open_cursor(query, direction).await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
@@ -209,17 +153,17 @@ where
     /// Scans the store for keys
     pub async fn scan_keys<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, M::Key, K>>,
+        query: Option<KeyRange<'a, M, T, K>>,
         direction: Option<Direction>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<M::Key>, Error>
+    ) -> Result<Vec<T>, Error>
     where
-        M::Key: Borrow<K>,
+        T: Borrow<K>,
         K: Serialize + ?Sized,
     {
         let query: Option<Query> = query.map(TryInto::try_into).transpose()?;
-        let mut cursor = self.store.open_cursor(query, direction).await?;
+        let mut cursor = self.index.open_cursor(query, direction).await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
@@ -264,15 +208,5 @@ where
             .into_iter()
             .map(|js_key| serde_wasm_bindgen::from_value(js_key).map_err(Into::into))
             .collect()
-    }
-
-    /// Deletes value with specified key
-    pub async fn delete<'a, K>(&self, query: KeyRange<'a, M, M::Key, K>) -> Result<(), Error>
-    where
-        M::Key: Borrow<K>,
-        K: Serialize + ?Sized,
-    {
-        let query: Query = query.try_into()?;
-        self.store.delete(query).await.map_err(Into::into)
     }
 }

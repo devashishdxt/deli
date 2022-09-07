@@ -1,3 +1,5 @@
+use std::mem::take;
+
 use idb::{Database as IdbDatabase, Error, Factory, VersionChangeEvent};
 
 use crate::{Model, TransactionBuilder};
@@ -78,12 +80,14 @@ impl DatabaseBuilder {
     }
 
     /// Builds an instance of [`Database`]
-    pub async fn build(self) -> Result<Database, Error> {
+    pub async fn build(&mut self) -> Result<Database, Error> {
         let factory = Factory::new()?;
         let mut open_request = factory.open(&self.name, self.version)?;
 
+        let models = take(&mut self.models);
+
         open_request.on_upgrade_needed(move |event| {
-            for model in self.models.into_iter() {
+            for model in models.into_iter() {
                 model(event.clone());
             }
         });

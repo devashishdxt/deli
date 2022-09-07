@@ -4,6 +4,8 @@
 //! using derive macros.
 mod database;
 mod error;
+mod index;
+mod key_range;
 mod model;
 pub mod reexports;
 mod store;
@@ -14,8 +16,10 @@ pub use idb::{CursorDirection as Direction, VersionChangeEvent};
 pub use self::{
     database::{Database, DatabaseBuilder},
     error::Error,
+    index::Index,
+    key_range::KeyRange,
     model::Model,
-    store::{KeyRange, Store},
+    store::Store,
     transaction::{Transaction, TransactionBuilder},
 };
 

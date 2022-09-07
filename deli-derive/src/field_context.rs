@@ -94,150 +94,6 @@ impl<'a> FieldContext<'a> {
         }
     }
 
-    /// Returns token stream for get function
-    pub fn get_fn(&self) -> Result<TokenStream, Error> {
-        let (generics, signature, where_clause) = fn_signature(&[self.key])?;
-        let ident = self.ident;
-        let key_ident = self.key.ident();
-
-        Ok(quote! {
-            pub async fn get<#generics>(&self, #signature) -> Result<::core::option::Option<#ident>, ::deli::Error> #where_clause {
-                self.store.get(#key_ident).await
-            }
-        })
-    }
-
-    /// Returns token stream for get_all function
-    pub fn get_all_fn(&self) -> TokenStream {
-        let ident = self.ident;
-        let key_type = &self.key.ty;
-
-        quote! {
-            pub async fn get_all<'deli, Key>(
-                &self,
-                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
-                limit: ::core::option::Option<u32>
-            ) -> ::core::result::Result<::std::vec::Vec<#ident>, ::deli::Error>
-            where
-                #key_type: ::core::borrow::Borrow<Key>,
-                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
-            {
-                self.store.get_all(query, limit).await
-            }
-        }
-    }
-
-    /// Returns token stream for get_all_keys function
-    pub fn get_all_keys_fn(&self) -> TokenStream {
-        let ident = self.ident;
-        let key_type = &self.key.ty;
-
-        quote! {
-            pub async fn get_all_keys<'deli, Key>(
-                &self,
-                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
-                limit: ::core::option::Option<u32>
-            ) -> ::core::result::Result<::std::vec::Vec<#key_type>, ::deli::Error>
-            where
-                #key_type: ::core::borrow::Borrow<Key>,
-                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
-            {
-                self.store.get_all_keys(query, limit).await
-            }
-        }
-    }
-
-    /// Returns token stream for scan function
-    pub fn scan_fn(&self) -> TokenStream {
-        let ident = self.ident;
-        let key_type = &self.key.ty;
-
-        quote! {
-            pub async fn scan<'deli, Key>(
-                &self,
-                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
-                direction: ::core::option::Option<::deli::Direction>,
-                limit: ::core::option::Option<u32>,
-                offset: ::core::option::Option<u32>,
-            ) -> ::core::result::Result<::std::vec::Vec<#ident>, ::deli::Error>
-            where
-                #key_type: ::core::borrow::Borrow<Key>,
-                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
-            {
-                self.store.scan(query, direction, limit, offset).await
-            }
-        }
-    }
-
-    /// Returns token stream for scan_keys function
-    pub fn scan_keys_fn(&self) -> TokenStream {
-        let ident = self.ident;
-        let key_type = &self.key.ty;
-
-        quote! {
-            pub async fn scan_keys<'deli, Key>(
-                &self,
-                query: ::core::option::Option<::deli::KeyRange<'deli, #ident, Key>>,
-                direction: ::core::option::Option<::deli::Direction>,
-                limit: ::core::option::Option<u32>,
-                offset: ::core::option::Option<u32>,
-            ) -> ::core::result::Result<::std::vec::Vec<#key_type>, ::deli::Error>
-            where
-                #key_type: ::core::borrow::Borrow<Key>,
-                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
-            {
-                self.store.scan_keys(query, direction, limit, offset).await
-            }
-        }
-    }
-
-    /// Returns token stream for add function
-    pub fn add_fn(&self) -> Result<TokenStream, Error> {
-        let (generics, signature, where_clause) = fn_signature(&self.creation_fields)?;
-        let key_type = &self.key.ty;
-        let fields_json = fields_json(&self.creation_fields);
-
-        Ok(quote! {
-            pub async fn add<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
-                let value = #fields_json;
-                self.store.add(&value).await
-            }
-        })
-    }
-
-    /// Returns token stream for update function
-    pub fn update_fn(&self) -> Result<TokenStream, Error> {
-        let (generics, signature, where_clause) = fn_signature(&self.updation_fields)?;
-        let key_type = &self.key.ty;
-        let fields_json = fields_json(&self.updation_fields);
-
-        Ok(quote! {
-            pub async fn update<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
-                let value = #fields_json;
-                self.store.update(&value).await
-            }
-        })
-    }
-
-    /// Returns token stream for delete function
-    pub fn delete_fn(&self) -> TokenStream {
-        let ident = self.ident;
-        let key_type = &self.key.ty;
-
-        quote! {
-            pub async fn delete<'deli, Key>(
-                &self,
-                query: ::deli::KeyRange<'deli, #ident, Key>
-            ) -> ::core::result::Result<(), ::deli::Error>
-            where
-                #key_type: ::core::borrow::Borrow<Key>,
-                Key: ::deli::reexports::serde::Serialize + ?::core::marker::Sized,
-            {
-                self.store.delete(query).await
-            }
-        }
-    }
-
     /// Returns the token stream for object store params
     fn store_params(&self) -> TokenStream {
         let name = self.key.name();
@@ -257,6 +113,59 @@ impl<'a> FieldContext<'a> {
             #auto_increment
             params
         }}
+    }
+
+    /// Returns token stream for add function
+    pub fn add_fn(&self) -> Result<TokenStream, Error> {
+        let (generics, signature, where_clause) = fn_signature(&self.creation_fields)?;
+        let key_type = &self.key.ty;
+        let fields_json = fields_json(&self.creation_fields);
+
+        Ok(quote! {
+            pub async fn add<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
+                let value = #fields_json;
+                self.store.non_generic_store().add(&value).await
+            }
+        })
+    }
+
+    /// Returns token stream for update function
+    pub fn update_fn(&self) -> Result<TokenStream, Error> {
+        let (generics, signature, where_clause) = fn_signature(&self.updation_fields)?;
+        let key_type = &self.key.ty;
+        let fields_json = fields_json(&self.updation_fields);
+
+        Ok(quote! {
+            pub async fn update<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
+                let value = #fields_json;
+                self.store.non_generic_store().update(&value).await
+            }
+        })
+    }
+
+    /// Returns token streams for by_index function
+    pub fn by_index_fns(&self) -> Vec<TokenStream> {
+        let ident = self.ident;
+
+        let mut fns = Vec::with_capacity(self.indexes.len());
+
+        for index in self.indexes.iter() {
+            let index_ident = index.ident();
+            let index_type = &index.ty;
+            let index_name = index.name();
+
+            let fn_name = Ident::new(&format!("by_{}", index_ident), index_ident.span());
+
+            let fn_def = quote! {
+                pub fn #fn_name (&self) -> ::core::result::Result<::deli::Index<#ident, #index_type>, ::deli::Error> {
+                    self.store.non_generic_store().index(#index_name)
+                }
+            };
+
+            fns.push(fn_def);
+        }
+
+        fns
     }
 }
 

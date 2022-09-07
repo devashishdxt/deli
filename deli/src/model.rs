@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use idb::VersionChangeEvent;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -12,7 +14,7 @@ pub trait Model: DeserializeOwned {
     type Key: Serialize + DeserializeOwned;
 
     /// Type of store for the model
-    type Store: From<Store<Self>>;
+    type Store: From<Store<Self>> + Deref<Target = Store<Self>>;
 
     /// Upgrade handler for the object store
     fn handle_upgrade(event: VersionChangeEvent);
