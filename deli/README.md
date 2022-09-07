@@ -12,6 +12,15 @@ To use `deli`, you need to add the following in your `Cargo.toml`:
 deli = "0.1"
 ```
 
+`deli` is intended to be used on browsers using webassembly. So, make sure to compile your project with
+`--target wasm32-unknown-unknown`. Alternatively, you can add following build configuration in your
+`.cargo/config.toml`:
+
+```toml
+[build]
+target = "wasm32-unknown-unknown"
+```
+
 ### Example
 
 #### Defining a `Model`
