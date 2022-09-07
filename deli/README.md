@@ -1,7 +1,7 @@
 # deli
 
-Deli is a convenience wrapper on [`idb`] create for easily creating and managing object stores in an indexed db
-using derive macros.
+Deli is a convenience wrapper on `idb` create for easily creating and managing object stores in an indexed db using
+derive macros.
 
 ## Usage
 
