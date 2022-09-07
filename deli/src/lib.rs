@@ -57,8 +57,8 @@
 //! - `#[deli(unique)]`: Creates an unique index for the field (implies `#[deli(index)]`).
 //! - `#[deli(multi_entry)]`: Creates a multi entry index for the field (implies `#[deli(index)]`).
 //! - `#[deli(rename)]`: Rename a field in object store. Note that this should be consistent with `serde` serialization.
-//!   For example, if you use `#[serde(rename_all = "camelCase")]` you need to appropriately rename the fields for deli
-//!   to be in sync with serde serialization.
+//!   For example, if you use `#[serde(rename_all = "camelCase")]` you need to appropriately rename the fields for
+//!   `deli` to be in sync with serde serialization.
 //!
 //! ### Creating a `Database`
 //!
@@ -88,7 +88,7 @@
 //! }
 //! ```
 //!
-//! You add all multiple `.with_model::<Model>()` calls to add more than one model to the transaction.
+//! You can add multiple `.with_model::<Model>()` calls to add more than one model to the transaction.
 //!
 //! ### Reading and writing data to a `Model` store
 //!
