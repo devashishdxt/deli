@@ -6,7 +6,7 @@ use serde_wasm_bindgen::Serializer;
 
 use crate::{Direction, Error, Index, KeyRange, Model};
 
-/// An object store in indexed db (with add and update function)
+/// An object store in indexed db (with add, update and index function)
 pub struct NonGenericStore<'a, M>
 where
     M: Model,

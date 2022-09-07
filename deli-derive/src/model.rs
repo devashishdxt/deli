@@ -14,6 +14,7 @@ pub struct Model {
     pub vis: Visibility,
     pub generics: Generics,
     pub name: Option<LitStr>,
+    pub store_name: Option<LitStr>,
     pub data: Data<(), ModelField>,
 }
 
@@ -31,6 +32,14 @@ impl Model {
         match self.name {
             Some(ref name) => Cow::Borrowed(name),
             None => Cow::Owned(LitStr::new(&self.ident.to_string(), self.ident.span())),
+        }
+    }
+
+    /// Returns the store struct name
+    pub fn store_name(&self) -> Ident {
+        match self.store_name {
+            None => Ident::new(&format!("{}Store", self.ident), self.ident.span()),
+            Some(ref store_name) => Ident::new(&store_name.value(), store_name.span()),
         }
     }
 
@@ -59,7 +68,7 @@ impl Model {
         let object_store = field_context.object_store();
         let indexes = field_context.indexes();
 
-        let store_name = Ident::new(&format!("{}Store", self.ident), self.ident.span());
+        let store_name = self.store_name();
 
         let add_fn = field_context.add_fn()?;
         let update_fn = field_context.update_fn()?;
