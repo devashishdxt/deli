@@ -90,6 +90,7 @@ impl Model {
                 }
             }
 
+            #[derive(Debug)]
             #vis struct #store_name {
                 store: ::deli::Store<#ident>,
             }

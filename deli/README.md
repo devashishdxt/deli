@@ -114,9 +114,13 @@ async fn get_employee(transaction: &Transaction, id: u32) -> Result<Option<Emplo
     Employee::with_transaction(transaction)?.get(&id).await
 }
 
-async fn get_all_employees(transaction: &Transaction: from_id: u32, to_id: u32) -> Result<Vec<Employee>, Error> {
-    let key_range = (&from_id..&to_id).into();
-    Employee::with_transaction(transaction)?.get_all(Some(key_range), None).await
+async fn get_all_employees(transaction: &Transaction) -> Result<Vec<Employee>, Error> {
+    // NOTE: Here `..` (i.e., `RangeFull`) means fetch all values from store
+    Employee::with_transaction(transaction)?.get_all(.., None).await
+}
+
+async fn get_employees_with_bounds(transaction: &Transaction: from_id: u32, to_id: u32) -> Result<Vec<Employee>, Error> {
+    Employee::with_transaction(transaction)?.get_all(&from_id..=&to_id, None).await
 }
 ```
 
@@ -135,28 +139,6 @@ outstanding requests have been satisfied and no new requests have been made.
 
 Also, be careful when using long-lived indexed db transactions as the behavior may change depending on the browser.
 For example, the transaction may get auto-committed when doing IO (network request) in the event loop.
-
-#### A note on `KeyRange`
-
-Many methods in `Store` and `Index` take a `KeyRange` or `Option<KeyRange>` as argument. You can easily obtain
-`KeyRange` instance from `&T`, `Range<&T>` or `RangeInclusive<&T>` where `T` is the type of key. In the above
-example `get_all_employees`, we get the `KeyRange` instance using:
-
-```rust
-let key_range = (&from_id..&to_id).into();
-```
-
-Similarly, you can get a `KeyRange` instance from a single value using:
-
-```rust
-let key_range = (&id).into();
-```
-
-And also from an inclusive range using:
-
-```rust
-let key_range = (&from_id..=&to_id).into();
-```
 
 ## License
 

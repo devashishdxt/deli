@@ -122,6 +122,7 @@ impl<'a> FieldContext<'a> {
         let fields_json = fields_json(&self.creation_fields);
 
         Ok(quote! {
+            /// Adds a new value to the store
             pub async fn add<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
                 let value = #fields_json;
                 self.store.non_generic_store().add(&value).await
@@ -136,6 +137,7 @@ impl<'a> FieldContext<'a> {
         let fields_json = fields_json(&self.updation_fields);
 
         Ok(quote! {
+            #[doc = " Updates an existing value in the store"]
             pub async fn update<#generics>(&self, #signature) -> Result<#key_type, ::deli::Error> #where_clause {
                 let value = #fields_json;
                 self.store.non_generic_store().update(&value).await
@@ -157,6 +159,9 @@ impl<'a> FieldContext<'a> {
             let fn_name = Ident::new(&format!("by_{}", index_ident), index_ident.span());
 
             let fn_def = quote! {
+                #[doc = "Returns "]
+                #[doc = #index_name]
+                #[doc = " index."]
                 pub fn #fn_name (&self) -> ::core::result::Result<::deli::Index<#ident, #index_type>, ::deli::Error> {
                     self.store.non_generic_store().index(#index_name)
                 }

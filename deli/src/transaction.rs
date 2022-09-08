@@ -5,6 +5,7 @@ use idb::{Transaction as IdbTransaction, TransactionMode};
 use crate::{Database, Error, Model, Store};
 
 /// Indexed db transaction
+#[derive(Debug)]
 pub struct Transaction {
     stores: Vec<&'static str>,
     write: bool,

@@ -1,8 +1,8 @@
 use std::mem::take;
 
-use idb::{Database as IdbDatabase, Error, Factory, VersionChangeEvent};
+use idb::{Database as IdbDatabase, Factory, VersionChangeEvent};
 
-use crate::{Model, TransactionBuilder};
+use crate::{Error, Model, TransactionBuilder};
 
 /// [`Database`] provides connection to an indexed db database
 #[derive(Debug)]
@@ -44,12 +44,18 @@ impl Database {
     /// Deletes a database
     pub async fn delete(name: &str) -> Result<(), Error> {
         let factory = Factory::new()?;
-        factory.delete(name).await
+        factory.delete(name).await.map_err(Into::into)
     }
 
     /// Returns the inner [`IdbDatabase`] handle
     pub(crate) fn database(&self) -> &IdbDatabase {
         &self.database
+    }
+}
+
+impl Drop for Database {
+    fn drop(&mut self) {
+        self.close()
     }
 }
 

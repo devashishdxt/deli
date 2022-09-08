@@ -1,12 +1,12 @@
 use std::{borrow::Borrow, marker::PhantomData};
 
-use idb::Query;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_wasm_bindgen::Serializer;
 
 use crate::{Direction, Error, KeyRange, Model};
 
 /// An index in indexed db object store
+#[derive(Debug)]
 pub struct Index<M, T>
 where
     M: Model,
@@ -32,13 +32,15 @@ where
     }
 
     /// Counts all the values from store with given query and limit
-    pub async fn count<'a, K>(&self, query: Option<KeyRange<'a, M, T, K>>) -> Result<u32, Error>
+    pub async fn count<'a, K>(&self, query: impl Into<KeyRange<'a, M, T, K>>) -> Result<u32, Error>
     where
         T: Borrow<K>,
-        K: Serialize + ?Sized,
+        K: Serialize + ?Sized + 'a,
     {
-        let query = query.map(TryInto::try_into).transpose()?;
-        self.index.count(query).await.map_err(Into::into)
+        self.index
+            .count(query.into().try_into()?)
+            .await
+            .map_err(Into::into)
     }
 
     /// Gets value for specifier key
@@ -55,15 +57,14 @@ where
     /// Gets all the values from store with given query and limit
     pub async fn get_all<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, T, K>>,
+        query: impl Into<KeyRange<'a, M, T, K>>,
         limit: Option<u32>,
     ) -> Result<Vec<M>, Error>
     where
         T: Borrow<K>,
-        K: Serialize + ?Sized,
+        K: Serialize + ?Sized + 'a,
     {
-        let query = query.map(TryInto::try_into).transpose()?;
-        let js_values = self.index.get_all(query, limit).await?;
+        let js_values = self.index.get_all(query.into().try_into()?, limit).await?;
 
         js_values
             .into_iter()
@@ -74,15 +75,17 @@ where
     /// Gets all the keys from store with given query and limit
     pub async fn get_all_keys<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, T, K>>,
+        query: impl Into<KeyRange<'a, M, T, K>>,
         limit: Option<u32>,
     ) -> Result<Vec<T>, Error>
     where
         T: Borrow<K>,
-        K: Serialize + ?Sized,
+        K: Serialize + ?Sized + 'a,
     {
-        let query = query.map(TryInto::try_into).transpose()?;
-        let js_keys = self.index.get_all_keys(query, limit).await?;
+        let js_keys = self
+            .index
+            .get_all_keys(query.into().try_into()?, limit)
+            .await?;
 
         js_keys
             .into_iter()
@@ -93,17 +96,19 @@ where
     /// Scans the store for values
     pub async fn scan<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, T, K>>,
+        query: impl Into<KeyRange<'a, M, T, K>>,
         direction: Option<Direction>,
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<M>, Error>
     where
         T: Borrow<K>,
-        K: Serialize + ?Sized,
+        K: Serialize + ?Sized + 'a,
     {
-        let query: Option<Query> = query.map(TryInto::try_into).transpose()?;
-        let mut cursor = self.index.open_cursor(query, direction).await?;
+        let mut cursor = self
+            .index
+            .open_cursor(query.into().try_into()?, direction)
+            .await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
@@ -153,17 +158,19 @@ where
     /// Scans the store for keys
     pub async fn scan_keys<'a, K>(
         &self,
-        query: Option<KeyRange<'a, M, T, K>>,
+        query: impl Into<KeyRange<'a, M, T, K>>,
         direction: Option<Direction>,
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<T>, Error>
     where
         T: Borrow<K>,
-        K: Serialize + ?Sized,
+        K: Serialize + ?Sized + 'a,
     {
-        let query: Option<Query> = query.map(TryInto::try_into).transpose()?;
-        let mut cursor = self.index.open_cursor(query, direction).await?;
+        let mut cursor = self
+            .index
+            .open_cursor(query.into().try_into()?, direction)
+            .await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
