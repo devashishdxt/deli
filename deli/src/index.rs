@@ -54,6 +54,17 @@ where
         serde_wasm_bindgen::from_value(js_value).map_err(Into::into)
     }
 
+    /// Gets the primary key corresponding to specified index key
+    pub async fn get_key<K>(&self, key: &K) -> Result<Option<M::Key>, Error>
+    where
+        T: Borrow<K>,
+        K: Serialize + ?Sized,
+    {
+        let key = key.serialize(&Serializer::json_compatible())?;
+        let js_value = self.index.get_key(key).await?;
+        serde_wasm_bindgen::from_value(js_value).map_err(Into::into)
+    }
+
     /// Gets all the values from store with given query and limit
     pub async fn get_all<'a, K>(
         &self,
@@ -77,7 +88,7 @@ where
         &self,
         query: impl Into<KeyRange<'a, M, T, K>>,
         limit: Option<u32>,
-    ) -> Result<Vec<T>, Error>
+    ) -> Result<Vec<M::Key>, Error>
     where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
@@ -162,7 +173,7 @@ where
         direction: Option<Direction>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<T>, Error>
+    ) -> Result<Vec<M::Key>, Error>
     where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
@@ -181,7 +192,7 @@ where
                 let mut js_keys = Vec::new();
 
                 for _ in 0..limit {
-                    let js_key = cursor.key()?;
+                    let js_key = cursor.primary_key()?;
 
                     if js_key.is_null() {
                         break;
@@ -197,7 +208,7 @@ where
                 let mut js_keys = Vec::new();
 
                 loop {
-                    let js_key = cursor.key()?;
+                    let js_key = cursor.primary_key()?;
 
                     if js_key.is_null() {
                         break;

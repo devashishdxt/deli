@@ -12,6 +12,7 @@ struct Employee {
     name: String,
     #[deli(unique)]
     email: String,
+    #[deli(index)]
     age: u8,
 }
 
@@ -429,6 +430,357 @@ async fn test_delete() {
 
     assert!(employee1.is_none());
     assert!(employee2.is_none());
+
+    transaction.done().await.expect("transaction done");
+
+    close_and_delete_database(database).await.unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn test_unique_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    store.add("Alice", "alice@example.com", &25).await.unwrap();
+
+    let err = store.add("Bob", "alice@example.com", &30).await;
+    assert!(err.is_err(), "{}", err.unwrap());
+}
+
+#[wasm_bindgen_test]
+async fn test_count_by_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    store.add("Alice", "alice@example.com", &25).await.unwrap();
+    store.add("Bob", "bob@example.com", &30).await.unwrap();
+    store
+        .add("Charlie", "charlie@example.com", &35)
+        .await
+        .unwrap();
+    store.add("Dave", "dave@example.com", &40).await.unwrap();
+
+    let count = store.by_age().unwrap().count(..).await.unwrap();
+    assert_eq!(count, 4);
+
+    let count = store.by_age().unwrap().count(..=&30).await.unwrap();
+    assert_eq!(count, 2);
+
+    let count = store.by_age().unwrap().count(&31..).await.unwrap();
+    assert_eq!(count, 2);
+
+    transaction.done().await.expect("transaction done");
+
+    close_and_delete_database(database).await.unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn test_get_by_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
+    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+
+    let employee1 = store
+        .by_email()
+        .unwrap()
+        .get("alice@example.com")
+        .await
+        .unwrap();
+
+    assert!(employee1.is_some());
+    let employee1 = employee1.unwrap();
+
+    assert_eq!(employee1.id, id1);
+
+    let employee2 = store
+        .by_email()
+        .unwrap()
+        .get("bob@example.com")
+        .await
+        .unwrap();
+
+    assert!(employee2.is_some());
+    let employee2 = employee2.unwrap();
+
+    assert_eq!(employee2.id, id2);
+
+    transaction.done().await.expect("transaction done");
+
+    close_and_delete_database(database).await.unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn test_get_key_by_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    let id = store.add("Alice", "alice@example.com", &25).await.unwrap();
+
+    let key = store
+        .by_email()
+        .unwrap()
+        .get_key("alice@example.com")
+        .await
+        .unwrap();
+
+    assert!(key.is_some());
+    let key = key.unwrap();
+
+    assert_eq!(key, id);
+
+    transaction.done().await.expect("transaction done");
+
+    close_and_delete_database(database).await.unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn test_get_all_by_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
+    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id3 = store
+        .add("Charlie", "charlie@example.com", &35)
+        .await
+        .unwrap();
+    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
+
+    let employees = store.by_age().unwrap().get_all(..=&30, None).await.unwrap();
+
+    assert_eq!(employees.len(), 2);
+
+    if employees[0].id == id1 {
+        assert_eq!(employees[1].id, id2);
+    } else {
+        assert_eq!(employees[0].id, id2);
+        assert_eq!(employees[1].id, id1);
+    }
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .get_all(&35..&40, None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+    assert_eq!(employees[0].id, id3);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .get_all(&35..=&40, Some(1))
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+
+    let employees = store.by_age().unwrap().get_all(&40.., None).await.unwrap();
+
+    assert_eq!(employees.len(), 1);
+    assert_eq!(employees[0].id, id4);
+
+    transaction.done().await.expect("transaction done");
+
+    close_and_delete_database(database).await.unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn test_get_all_keys_by_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
+    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id3 = store
+        .add("Charlie", "charlie@example.com", &35)
+        .await
+        .unwrap();
+    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .get_all_keys(..=&30, None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 2);
+
+    if employees[0] == id1 {
+        assert_eq!(employees[1], id2);
+    } else {
+        assert_eq!(employees[0], id2);
+        assert_eq!(employees[1], id1);
+    }
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .get_all_keys(&35..&40, None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+    assert_eq!(employees[0], id3);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .get_all_keys(&35..=&40, Some(1))
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .get_all_keys(&40.., None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+    assert_eq!(employees[0], id4);
+
+    transaction.done().await.expect("transaction done");
+
+    close_and_delete_database(database).await.unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn test_scan_by_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
+    let id3 = store
+        .add("Charlie", "charlie@example.com", &35)
+        .await
+        .unwrap();
+    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan(..=&30, Some(Direction::Next), None, None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 2);
+
+    assert_eq!(employees[0].id, id1);
+    assert_eq!(employees[1].id, id2);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan(&31.., Some(Direction::Prev), None, None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 2);
+
+    assert_eq!(employees[0].id, id4);
+    assert_eq!(employees[1].id, id3);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan(..=&30, Some(Direction::Next), Some(1), None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+
+    assert_eq!(employees[0].id, id1);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan(..=&30, Some(Direction::Next), None, Some(1))
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+
+    assert_eq!(employees[0].id, id2);
+
+    transaction.done().await.expect("transaction done");
+
+    close_and_delete_database(database).await.unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn test_scan_keys_by_index() {
+    let database = create_database().await.unwrap();
+    let transaction = begin_write_transaction(&database).unwrap();
+    let store = Employee::with_transaction(&transaction).unwrap();
+
+    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
+    let id3 = store
+        .add("Charlie", "charlie@example.com", &35)
+        .await
+        .unwrap();
+    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan_keys(..=&30, Some(Direction::Next), None, None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 2);
+
+    assert_eq!(employees[0], id1);
+    assert_eq!(employees[1], id2);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan_keys(&31.., Some(Direction::Prev), None, None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 2);
+
+    assert_eq!(employees[0], id4);
+    assert_eq!(employees[1], id3);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan_keys(..=&30, Some(Direction::Next), Some(1), None)
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+
+    assert_eq!(employees[0], id1);
+
+    let employees = store
+        .by_age()
+        .unwrap()
+        .scan_keys(..=&30, Some(Direction::Next), None, Some(1))
+        .await
+        .unwrap();
+
+    assert_eq!(employees.len(), 1);
+
+    assert_eq!(employees[0], id2);
 
     transaction.done().await.expect("transaction done");
 
