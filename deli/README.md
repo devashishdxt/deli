@@ -1,7 +1,7 @@
 # deli
 
-Deli is a convenience wrapper on `idb` create for easily creating and managing object stores in an indexed db using
-derive macros.
+Deli is a convenience wrapper on `idb` create for easily creating and managing object stores in an indexed db on
+browsers using derive macros.
 
 ## Usage
 
@@ -50,12 +50,12 @@ writing data to the store.
 
 ##### Container attributes
 
-- `#[deli(name)]`: In indexed DB, by default, it creates a new object store with name of the struct (in the above example, it'll create
-  an object store `Employee` in indexed db) when creating a database. To change the default object store name, use
-  `#[deli(name = "your_object_store_name")]`.
+- `#[deli(name)]`: In indexed DB, by default, it creates a new object store with name of the struct (in the above
+  example, it'll create an object store `Employee` in indexed db) when creating a database. To change the default
+  object store name, use `#[deli(name = "your_object_store_name")]`.
 
-- `#[deli(store_name)]`: By default, the derive macro will create a `<ModelName>Store` struct (in the above example, it'll create a
-  `EmployeeStore` struct). To change the default name, use `#[deli(store_name = "YourStoreName")]`.
+- `#[deli(store_name)]`: By default, the derive macro will create a `<ModelName>Store` struct (in the above example,
+  it'll create a `EmployeeStore` struct). To change the default name, use `#[deli(store_name = "YourStoreName")]`.
 
 ##### Field attributes
 
@@ -119,7 +119,11 @@ async fn get_all_employees(transaction: &Transaction) -> Result<Vec<Employee>, E
     Employee::with_transaction(transaction)?.get_all(.., None).await
 }
 
-async fn get_employees_with_bounds(transaction: &Transaction: from_id: u32, to_id: u32) -> Result<Vec<Employee>, Error> {
+async fn get_employees_with_bounds(
+    transaction: &Transaction,
+    from_id: u32,
+    to_id: u32,
+) -> Result<Vec<Employee>, Error> {
     Employee::with_transaction(transaction)?.get_all(&from_id..=&to_id, None).await
 }
 ```
