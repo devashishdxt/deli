@@ -162,7 +162,7 @@ impl<'a> FieldContext<'a> {
                 #[doc = "Returns "]
                 #[doc = #index_name]
                 #[doc = " index."]
-                pub fn #fn_name (&self) -> ::core::result::Result<::deli::Index<#ident, #index_type>, ::deli::Error> {
+                pub fn #fn_name (&'transaction self) -> ::core::result::Result<::deli::Index<'transaction, #ident, #index_type>, ::deli::Error> {
                     self.store.non_generic_store().index(#index_name)
                 }
             };

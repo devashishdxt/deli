@@ -3,29 +3,31 @@ use std::{borrow::Borrow, marker::PhantomData};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_wasm_bindgen::Serializer;
 
-use crate::{Direction, Error, KeyRange, Model};
+use crate::{Direction, Error, KeyRange, Model, Transaction};
 
 /// An index in indexed db object store
 #[derive(Debug)]
-pub struct Index<M, T>
+pub struct Index<'t, M, T>
 where
     M: Model,
     T: DeserializeOwned,
 {
     index: idb::Index,
+    _transaction: &'t Transaction,
     _generics_model: PhantomData<M>,
     _generics_index_type: PhantomData<T>,
 }
 
-impl<M, T> Index<M, T>
+impl<'t, M, T> Index<'t, M, T>
 where
     M: Model,
     T: Serialize + DeserializeOwned,
 {
     /// Creates a new instance of index
-    pub(crate) fn new(index: idb::Index) -> Self {
+    pub(crate) fn new(transaction: &'t Transaction, index: idb::Index) -> Self {
         Self {
             index,
+            _transaction: transaction,
             _generics_model: Default::default(),
             _generics_index_type: Default::default(),
         }

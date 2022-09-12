@@ -44,13 +44,13 @@ impl Transaction {
     }
 
     /// Returns a store for a model
-    pub fn store<M>(&self) -> Result<Store<M>, Error>
+    pub fn store<M>(&self) -> Result<Store<'_, M>, Error>
     where
         M: Model,
     {
         self.transaction
             .object_store(M::NAME)
-            .map(Store::new)
+            .map(|object_store| Store::new(self, object_store))
             .map_err(Into::into)
     }
 }

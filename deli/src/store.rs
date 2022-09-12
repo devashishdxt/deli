@@ -4,26 +4,28 @@ use idb::{ObjectStore, Query};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_wasm_bindgen::Serializer;
 
-use crate::{Direction, Error, Index, KeyRange, Model, SpecificKeyRange};
+use crate::{Direction, Error, Index, KeyRange, Model, SpecificKeyRange, Transaction};
 
 /// An object store in indexed db (with add, update and index function)
 #[derive(Debug)]
-pub struct NonGenericStore<'a, M>
+pub struct NonGenericStore<'t, 'a, M>
 where
     M: Model,
 {
     store: &'a ObjectStore,
+    transaction: &'t Transaction,
     _generics: PhantomData<M>,
 }
 
-impl<'a, M> NonGenericStore<'a, M>
+impl<'t, 'a, M> NonGenericStore<'t, 'a, M>
 where
     M: Model,
 {
     /// Creates a new instance of store
-    pub(crate) fn new(store: &'a ObjectStore) -> Self {
+    pub(crate) fn new(transaction: &'t Transaction, store: &'a ObjectStore) -> Self {
         Self {
             store,
+            transaction,
             _generics: Default::default(),
         }
     }
@@ -49,41 +51,43 @@ where
     }
 
     /// Returns object store index with given name and data type
-    pub fn index<T>(&self, name: &str) -> Result<Index<M, T>, Error>
+    pub fn index<T>(&self, name: &str) -> Result<Index<'t, M, T>, Error>
     where
         T: Serialize + DeserializeOwned,
     {
         let index = self.store.index(name)?;
-        Ok(Index::new(index))
+        Ok(Index::new(self.transaction, index))
     }
 }
 
 /// An object store in indexed db
 #[derive(Debug)]
-pub struct Store<M>
+pub struct Store<'t, M>
 where
     M: Model,
 {
     store: ObjectStore,
+    transaction: &'t Transaction,
     _generics: PhantomData<M>,
 }
 
-impl<M> Store<M>
+impl<'t, M> Store<'t, M>
 where
     M: Model,
 {
     /// Creates a new instance of store
-    pub(crate) fn new(store: ObjectStore) -> Self {
+    pub(crate) fn new(transaction: &'t Transaction, store: ObjectStore) -> Self {
         Self {
             store,
+            transaction,
             _generics: Default::default(),
         }
     }
 
     /// Returns an add and update enabled store
     #[doc(hidden)]
-    pub fn non_generic_store(&self) -> NonGenericStore<'_, M> {
-        NonGenericStore::new(&self.store)
+    pub fn non_generic_store(&self) -> NonGenericStore<'_, '_, M> {
+        NonGenericStore::new(self.transaction, &self.store)
     }
 
     /// Counts all the values from store with given query and limit

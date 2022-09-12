@@ -81,8 +81,6 @@ impl Model {
 
                 type Key = #key_type;
 
-                type Store = #store_name;
-
                 fn handle_upgrade(event: ::deli::VersionChangeEvent) {
                     let database = event.database().unwrap();
                     #object_store
@@ -90,26 +88,33 @@ impl Model {
                 }
             }
 
-            #[derive(Debug)]
-            #vis struct #store_name {
-                store: ::deli::Store<#ident>,
+            impl #impl_generics #ident #ty_generics #where_clause {
+                #[doc = "Get a store from given transaction"]
+                #vis fn with_transaction(transaction: &::deli::Transaction) -> ::core::result::Result<#store_name <'_>, ::deli::Error> {
+                    transaction.store::<Self>().map(::core::convert::Into::into)
+                }
             }
 
-            impl ::core::ops::Deref for #store_name {
-                type Target = ::deli::Store<#ident>;
+            #[derive(Debug)]
+            #vis struct #store_name <'transaction> {
+                store: ::deli::Store<'transaction, #ident>,
+            }
+
+            impl<'transaction> ::core::ops::Deref for #store_name <'transaction> {
+                type Target = ::deli::Store<'transaction, #ident>;
 
                 fn deref(&self) -> &Self::Target {
                     &self.store
                 }
             }
 
-            impl ::core::convert::From<::deli::Store<#ident>> for #store_name {
-                fn from(store: ::deli::Store<#ident>) -> Self {
+            impl<'transaction> ::core::convert::From<::deli::Store<'transaction, #ident>> for #store_name <'transaction> {
+                fn from(store: ::deli::Store<'transaction, #ident>) -> Self {
                     Self { store }
                 }
             }
 
-            impl #store_name {
+            impl<'transaction> #store_name <'transaction> {
                 #add_fn
                 #update_fn
 

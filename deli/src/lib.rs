@@ -101,10 +101,11 @@
 //!
 //! ### Reading and writing data to a `Model` store
 //!
-//! Once you have a transaction for a model, you can read or write data to that model.
+//! Once you have a transaction for a model, you can read or write data to that model. `Model` derive macro generates a
+//! static method on the model struct named `with_transaction` which can be used to obtain store for that model.
 //!
 //! ```rust
-//! use deli::{Error, Model, Transaction};
+//! use deli::{Error, Transaction};
 //!
 //! async fn add_employee(transaction: &Transaction) -> Result<u32, Error> {
 //!     Employee::with_transaction(transaction)?.add("Alice", "alice@example.com", &25).await
