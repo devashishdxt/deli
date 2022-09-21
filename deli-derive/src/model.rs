@@ -81,17 +81,12 @@ impl Model {
 
                 type Key = #key_type;
 
+                type Store<'transaction> = #store_name <'transaction>;
+
                 fn handle_upgrade(event: ::deli::VersionChangeEvent) {
                     let database = event.database().unwrap();
                     #object_store
                     #(#indexes)*
-                }
-            }
-
-            impl #impl_generics #ident #ty_generics #where_clause {
-                #[doc = "Get a store from given transaction"]
-                #vis fn with_transaction(transaction: &::deli::Transaction) -> ::core::result::Result<#store_name <'_>, ::deli::Error> {
-                    transaction.store::<Self>().map(::core::convert::Into::into)
                 }
             }
 

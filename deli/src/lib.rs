@@ -1,5 +1,5 @@
 #![deny(missing_docs)]
-#![forbid(unsafe_code, unstable_features)]
+#![forbid(unsafe_code)]
 //! Deli is a convenience wrapper on `idb` create for easily creating and managing object stores in an indexed db on
 //! browsers using derive macros.
 //!
