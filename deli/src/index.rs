@@ -3,17 +3,17 @@ use std::{borrow::Borrow, marker::PhantomData};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_wasm_bindgen::Serializer;
 
-use crate::{Direction, Error, KeyRange, Model, Transaction};
+use crate::{Cursor, Direction, Error, KeyCursor, KeyRange, Model, Transaction};
 
 /// An index in indexed db object store
 #[derive(Debug)]
 pub struct Index<'t, M, T>
 where
     M: Model,
-    T: DeserializeOwned,
+    T: Serialize + DeserializeOwned,
 {
     index: idb::Index,
-    _transaction: &'t Transaction,
+    transaction: &'t Transaction,
     _generics_model: PhantomData<M>,
     _generics_index_type: PhantomData<T>,
 }
@@ -27,7 +27,7 @@ where
     pub(crate) fn new(transaction: &'t Transaction, index: idb::Index) -> Self {
         Self {
             index,
-            _transaction: transaction,
+            transaction,
             _generics_model: Default::default(),
             _generics_index_type: Default::default(),
         }
@@ -118,54 +118,39 @@ where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
     {
-        let mut cursor = self
-            .index
-            .open_cursor(query.into().try_into()?, direction)
-            .await?;
+        let mut cursor = self.cursor(query, direction).await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
         }
 
-        let js_values = match limit {
+        match limit {
             Some(limit) => {
-                let mut js_values = Vec::new();
+                let mut values = Vec::new();
 
                 for _ in 0..limit {
-                    let js_value = cursor.value()?;
-
-                    if js_value.is_null() {
-                        break;
+                    match cursor.get_value()? {
+                        Some(value) => {
+                            values.push(value);
+                            cursor.advance(1).await?;
+                        }
+                        None => break,
                     }
-
-                    js_values.push(js_value);
-                    cursor.next(None).await?;
                 }
 
-                js_values
+                Ok(values)
             }
             None => {
-                let mut js_values = Vec::new();
+                let mut values = Vec::new();
 
-                loop {
-                    let js_value = cursor.value()?;
-
-                    if js_value.is_null() {
-                        break;
-                    }
-
-                    js_values.push(js_value);
-                    cursor.next(None).await?;
+                while let Some(value) = cursor.get_value()? {
+                    values.push(value);
+                    cursor.advance(1).await?;
                 }
 
-                js_values
+                Ok(values)
             }
-        };
-
-        js_values
-            .into_iter()
-            .map(|js_value| serde_wasm_bindgen::from_value(js_value).map_err(Into::into))
-            .collect()
+        }
     }
 
     /// Scans the store for keys
@@ -180,53 +165,74 @@ where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
     {
-        let mut cursor = self
-            .index
-            .open_cursor(query.into().try_into()?, direction)
-            .await?;
+        let mut cursor = self.key_cursor(query, direction).await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
         }
 
-        let js_keys = match limit {
+        match limit {
             Some(limit) => {
-                let mut js_keys = Vec::new();
+                let mut keys = Vec::new();
 
                 for _ in 0..limit {
-                    let js_key = cursor.primary_key()?;
-
-                    if js_key.is_null() {
-                        break;
+                    match cursor.get_key()? {
+                        Some(value) => {
+                            keys.push(value);
+                            cursor.advance(1).await?;
+                        }
+                        None => break,
                     }
-
-                    js_keys.push(js_key);
-                    cursor.next(None).await?;
                 }
 
-                js_keys
+                Ok(keys)
             }
             None => {
-                let mut js_keys = Vec::new();
+                let mut keys = Vec::new();
 
-                loop {
-                    let js_key = cursor.primary_key()?;
-
-                    if js_key.is_null() {
-                        break;
-                    }
-
-                    js_keys.push(js_key);
-                    cursor.next(None).await?;
+                while let Some(value) = cursor.get_key()? {
+                    keys.push(value);
+                    cursor.advance(1).await?;
                 }
 
-                js_keys
+                Ok(keys)
             }
-        };
+        }
+    }
 
-        js_keys
-            .into_iter()
-            .map(|js_key| serde_wasm_bindgen::from_value(js_key).map_err(Into::into))
-            .collect()
+    /// Returns a cursor on index
+    pub async fn cursor<'a, K>(
+        &self,
+        query: impl Into<KeyRange<'a, M, T, K>>,
+        direction: Option<Direction>,
+    ) -> Result<M::Cursor<'t>, Error>
+    where
+        T: Borrow<K>,
+        K: Serialize + ?Sized + 'a,
+    {
+        let cursor = self
+            .index
+            .open_cursor(query.into().try_into()?, direction)
+            .await?;
+
+        Ok(Cursor::new(self.transaction, cursor).into())
+    }
+
+    /// Returns a key cursor on index
+    pub async fn key_cursor<'a, K>(
+        &self,
+        query: impl Into<KeyRange<'a, M, T, K>>,
+        direction: Option<Direction>,
+    ) -> Result<M::KeyCursor<'t>, Error>
+    where
+        T: Borrow<K>,
+        K: Serialize + ?Sized + 'a,
+    {
+        let cursor = self
+            .index
+            .open_key_cursor(query.into().try_into()?, direction)
+            .await?;
+
+        Ok(KeyCursor::new(self.transaction, cursor).into())
     }
 }

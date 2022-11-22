@@ -4,7 +4,9 @@ use idb::{ObjectStore, Query};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_wasm_bindgen::Serializer;
 
-use crate::{Direction, Error, Index, KeyRange, Model, SpecificKeyRange, Transaction};
+use crate::{
+    Cursor, Direction, Error, Index, KeyCursor, KeyRange, Model, SpecificKeyRange, Transaction,
+};
 
 /// An object store in indexed db (with add, update and index function)
 #[derive(Debug)]
@@ -167,54 +169,39 @@ where
         M::Key: Borrow<K>,
         K: Serialize + ?Sized + 'a,
     {
-        let mut cursor = self
-            .store
-            .open_cursor(query.into().try_into()?, direction)
-            .await?;
+        let mut cursor = self.cursor(query, direction).await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
         }
 
-        let js_values = match limit {
+        match limit {
             Some(limit) => {
-                let mut js_values = Vec::new();
+                let mut values = Vec::new();
 
                 for _ in 0..limit {
-                    let js_value = cursor.value()?;
-
-                    if js_value.is_null() {
-                        break;
+                    match cursor.get_value()? {
+                        Some(value) => {
+                            values.push(value);
+                            cursor.advance(1).await?;
+                        }
+                        None => break,
                     }
-
-                    js_values.push(js_value);
-                    cursor.next(None).await?;
                 }
 
-                js_values
+                Ok(values)
             }
             None => {
-                let mut js_values = Vec::new();
+                let mut values = Vec::new();
 
-                loop {
-                    let js_value = cursor.value()?;
-
-                    if js_value.is_null() {
-                        break;
-                    }
-
-                    js_values.push(js_value);
-                    cursor.next(None).await?;
+                while let Some(value) = cursor.get_value()? {
+                    values.push(value);
+                    cursor.advance(1).await?;
                 }
 
-                js_values
+                Ok(values)
             }
-        };
-
-        js_values
-            .into_iter()
-            .map(|js_value| serde_wasm_bindgen::from_value(js_value).map_err(Into::into))
-            .collect()
+        }
     }
 
     /// Scans the store for keys
@@ -229,54 +216,75 @@ where
         M::Key: Borrow<K>,
         K: Serialize + ?Sized + 'a,
     {
-        let mut cursor = self
-            .store
-            .open_cursor(query.into().try_into()?, direction)
-            .await?;
+        let mut cursor = self.key_cursor(query, direction).await?;
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
         }
 
-        let js_keys = match limit {
+        match limit {
             Some(limit) => {
-                let mut js_keys = Vec::new();
+                let mut keys = Vec::new();
 
                 for _ in 0..limit {
-                    let js_key = cursor.key()?;
-
-                    if js_key.is_null() {
-                        break;
+                    match cursor.get_key()? {
+                        Some(value) => {
+                            keys.push(value);
+                            cursor.advance(1).await?;
+                        }
+                        None => break,
                     }
-
-                    js_keys.push(js_key);
-                    cursor.next(None).await?;
                 }
 
-                js_keys
+                Ok(keys)
             }
             None => {
-                let mut js_keys = Vec::new();
+                let mut keys = Vec::new();
 
-                loop {
-                    let js_key = cursor.key()?;
-
-                    if js_key.is_null() {
-                        break;
-                    }
-
-                    js_keys.push(js_key);
-                    cursor.next(None).await?;
+                while let Some(value) = cursor.get_key()? {
+                    keys.push(value);
+                    cursor.advance(1).await?;
                 }
 
-                js_keys
+                Ok(keys)
             }
-        };
+        }
+    }
 
-        js_keys
-            .into_iter()
-            .map(|js_key| serde_wasm_bindgen::from_value(js_key).map_err(Into::into))
-            .collect()
+    /// Returns a cursor on object store
+    pub async fn cursor<'a, K>(
+        &self,
+        query: impl Into<KeyRange<'a, M, M::Key, K>>,
+        direction: Option<Direction>,
+    ) -> Result<M::Cursor<'t>, Error>
+    where
+        M::Key: Borrow<K>,
+        K: Serialize + ?Sized + 'a,
+    {
+        let cursor = self
+            .store
+            .open_cursor(query.into().try_into()?, direction)
+            .await?;
+
+        Ok(Cursor::new(self.transaction, cursor).into())
+    }
+
+    /// Returns a key cursor on object store
+    pub async fn key_cursor<'a, K>(
+        &self,
+        query: impl Into<KeyRange<'a, M, M::Key, K>>,
+        direction: Option<Direction>,
+    ) -> Result<M::KeyCursor<'t>, Error>
+    where
+        M::Key: Borrow<K>,
+        K: Serialize + ?Sized + 'a,
+    {
+        let cursor = self
+            .store
+            .open_key_cursor(query.into().try_into()?, direction)
+            .await?;
+
+        Ok(KeyCursor::new(self.transaction, cursor).into())
     }
 
     /// Deletes value with specified key

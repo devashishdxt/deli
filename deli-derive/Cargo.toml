@@ -7,7 +7,7 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-darling = "0.14.1"
-proc-macro2 = "1.0.43"
+darling = "0.14.2"
+proc-macro2 = "1.0.47"
 quote = "1.0.21"
-syn = "1.0.100"
+syn = "1.0.103"

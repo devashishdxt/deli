@@ -1,5 +1,5 @@
 #![deny(missing_docs)]
-#![forbid(unsafe_code)]
+#![forbid(unsafe_code, unstable_features)]
 //! Deli is a convenience wrapper on `idb` create for easily creating and managing object stores in an indexed db on
 //! browsers using derive macros.
 //!
@@ -144,11 +144,14 @@
 //!
 //! Also, be careful when using long-lived indexed db transactions as the behavior may change depending on the browser.
 //! For example, the transaction may get auto-committed when doing IO (network request) in the event loop.
+mod cursor;
 mod database;
 mod error;
 mod index;
+mod key_cursor;
 mod key_range;
 mod model;
+#[doc(hidden)]
 pub mod reexports;
 mod specific_key_range;
 mod store;
@@ -157,9 +160,11 @@ mod transaction;
 pub use idb::{CursorDirection as Direction, VersionChangeEvent};
 
 pub use self::{
+    cursor::Cursor,
     database::{Database, DatabaseBuilder},
     error::Error,
     index::Index,
+    key_cursor::KeyCursor,
     key_range::KeyRange,
     model::Model,
     specific_key_range::SpecificKeyRange,

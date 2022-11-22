@@ -15,6 +15,8 @@ pub struct Model {
     pub generics: Generics,
     pub name: Option<LitStr>,
     pub store_name: Option<LitStr>,
+    pub cursor_name: Option<LitStr>,
+    pub key_cursor_name: Option<LitStr>,
     pub data: Data<(), ModelField>,
 }
 
@@ -40,6 +42,24 @@ impl Model {
         match self.store_name {
             None => Ident::new(&format!("{}Store", self.ident), self.ident.span()),
             Some(ref store_name) => Ident::new(&store_name.value(), store_name.span()),
+        }
+    }
+
+    /// Returns the cursor struct name
+    pub fn cursor_name(&self) -> Ident {
+        match self.cursor_name {
+            None => Ident::new(&format!("{}Cursor", self.ident), self.ident.span()),
+            Some(ref cursor_name) => Ident::new(&cursor_name.value(), cursor_name.span()),
+        }
+    }
+
+    /// Returns the key cursor struct name
+    pub fn key_cursor_name(&self) -> Ident {
+        match self.key_cursor_name {
+            None => Ident::new(&format!("{}KeyCursor", self.ident), self.ident.span()),
+            Some(ref key_cursor_name) => {
+                Ident::new(&key_cursor_name.value(), key_cursor_name.span())
+            }
         }
     }
 
@@ -69,6 +89,8 @@ impl Model {
         let indexes = field_context.indexes();
 
         let store_name = self.store_name();
+        let cursor_name = self.cursor_name();
+        let key_cursor_name = self.key_cursor_name();
 
         let add_fn = field_context.add_fn()?;
         let update_fn = field_context.update_fn()?;
@@ -82,6 +104,10 @@ impl Model {
                 type Key = #key_type;
 
                 type Store<'transaction> = #store_name <'transaction>;
+
+                type Cursor<'transaction> = #cursor_name <'transaction>;
+
+                type KeyCursor<'transaction> = #key_cursor_name <'transaction>;
 
                 fn handle_upgrade(event: ::deli::VersionChangeEvent) {
                     let database = event.database().unwrap();
@@ -114,6 +140,56 @@ impl Model {
                 #update_fn
 
                 #(#by_index_fns)*
+            }
+
+            #[derive(Debug)]
+            #vis struct #cursor_name <'transaction> {
+                cursor: ::deli::Cursor<'transaction, #ident>,
+            }
+
+            impl<'transaction> ::core::ops::Deref for #cursor_name <'transaction> {
+                type Target = ::deli::Cursor<'transaction, #ident>;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.cursor
+                }
+            }
+
+            impl<'transaction> ::core::ops::DerefMut for #cursor_name <'transaction> {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut self.cursor
+                }
+            }
+
+            impl<'transaction> ::core::convert::From<::deli::Cursor<'transaction, #ident>> for #cursor_name <'transaction> {
+                fn from(cursor: ::deli::Cursor<'transaction, #ident>) -> Self {
+                    Self { cursor }
+                }
+            }
+
+            #[derive(Debug)]
+            #vis struct #key_cursor_name <'transaction> {
+                cursor: ::deli::KeyCursor<'transaction, #ident>,
+            }
+
+            impl<'transaction> ::core::ops::Deref for #key_cursor_name <'transaction> {
+                type Target = ::deli::KeyCursor<'transaction, #ident>;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.cursor
+                }
+            }
+
+            impl<'transaction> ::core::ops::DerefMut for #key_cursor_name <'transaction> {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut self.cursor
+                }
+            }
+
+            impl<'transaction> ::core::convert::From<::deli::KeyCursor<'transaction, #ident>> for #key_cursor_name <'transaction> {
+                fn from(cursor: ::deli::KeyCursor<'transaction, #ident>) -> Self {
+                    Self { cursor }
+                }
             }
         })
     }

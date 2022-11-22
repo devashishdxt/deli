@@ -98,7 +98,7 @@ impl DatabaseBuilder {
             }
         });
 
-        let mut database = open_request.into_future().await?;
+        let mut database = open_request.await?;
         database.on_version_change(|database| database.close());
 
         Ok(Database { database })
