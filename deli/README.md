@@ -1,6 +1,6 @@
 # deli
 
-Deli is a convenience wrapper on `idb` create for easily creating and managing object stores in an indexed db on
+Deli is a convenience wrapper on `idb` crate for easily creating and managing object stores in an indexed db on
 browsers using derive macros.
 
 ## Usage
@@ -101,10 +101,11 @@ You can add multiple `.with_model::<Model>()` calls to add more than one model t
 
 #### Reading and writing data to a `Model` store
 
-Once you have a transaction for a model, you can read or write data to that model.
+Once you have a transaction for a model, you can read or write data to that model. `Model` derive macro generates a
+static method on the model struct named `with_transaction` which can be used to obtain store for that model.
 
 ```rust
-use deli::{Error, Model, Transaction};
+use deli::{Error, Transaction};
 
 async fn add_employee(transaction: &Transaction) -> Result<u32, Error> {
     Employee::with_transaction(transaction)?.add("Alice", "alice@example.com", &25).await
