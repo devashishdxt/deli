@@ -53,7 +53,13 @@ where
     {
         let key = key.serialize(&Serializer::json_compatible())?;
         let js_value = self.index.get(key).await?;
-        serde_wasm_bindgen::from_value(js_value).map_err(Into::into)
+        js_value
+            .and_then(|js_value| {
+                serde_wasm_bindgen::from_value(js_value)
+                    .map_err(Into::into)
+                    .transpose()
+            })
+            .transpose()
     }
 
     /// Gets the primary key corresponding to specified index key
@@ -64,7 +70,13 @@ where
     {
         let key = key.serialize(&Serializer::json_compatible())?;
         let js_value = self.index.get_key(key).await?;
-        serde_wasm_bindgen::from_value(js_value).map_err(Into::into)
+        js_value
+            .and_then(|js_value| {
+                serde_wasm_bindgen::from_value(js_value)
+                    .map_err(Into::into)
+                    .transpose()
+            })
+            .transpose()
     }
 
     /// Gets all the values from store with given query and limit
@@ -118,7 +130,9 @@ where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
     {
-        let mut cursor = self.cursor(query, direction).await?;
+        let Some(mut cursor) = self.cursor(query, direction).await? else {
+            return Ok(Vec::new());
+        };
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
@@ -165,7 +179,9 @@ where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
     {
-        let mut cursor = self.key_cursor(query, direction).await?;
+        let Some(mut cursor) = self.key_cursor(query, direction).await? else {
+            return Ok(Vec::new());
+        };
 
         if let Some(offset) = offset {
             cursor.advance(offset).await?;
@@ -205,7 +221,7 @@ where
         &self,
         query: impl Into<KeyRange<'a, M, T, K>>,
         direction: Option<Direction>,
-    ) -> Result<M::Cursor<'t>, Error>
+    ) -> Result<Option<M::Cursor<'t>>, Error>
     where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
@@ -215,7 +231,7 @@ where
             .open_cursor(query.into().try_into()?, direction)
             .await?;
 
-        Ok(Cursor::new(self.transaction, cursor).into())
+        Ok(cursor.map(|c| Cursor::new(self.transaction, c).into()))
     }
 
     /// Returns a key cursor on index
@@ -223,7 +239,7 @@ where
         &self,
         query: impl Into<KeyRange<'a, M, T, K>>,
         direction: Option<Direction>,
-    ) -> Result<M::KeyCursor<'t>, Error>
+    ) -> Result<Option<M::KeyCursor<'t>>, Error>
     where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
@@ -233,6 +249,6 @@ where
             .open_key_cursor(query.into().try_into()?, direction)
             .await?;
 
-        Ok(KeyCursor::new(self.transaction, cursor).into())
+        Ok(cursor.map(|c| KeyCursor::new(self.transaction, c).into()))
     }
 }
