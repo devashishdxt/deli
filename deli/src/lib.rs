@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! deli = "0.1"
+//! deli = "0.2"
 //! ```
 //!
 //! `deli` is intended to be used on browsers using webassembly. So, make sure to compile your project with

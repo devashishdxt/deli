@@ -1,6 +1,6 @@
 [package]
 name = "deli"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A convenience wrapper on `idb` crate for easily creating and managing object stores in an indexed db on browsers using derive macros"
@@ -14,7 +14,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-deli-derive = { version = "0.1.0", path = "../deli-derive" }
+deli-derive = { version = "0.1.1", path = "../deli-derive" }
 idb = "0.4.0"
 serde = "1.0.152"
 serde-wasm-bindgen = "0.4.5"

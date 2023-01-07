@@ -9,7 +9,7 @@ To use `deli`, you need to add the following in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-deli = "0.1"
+deli = "0.2"
 ```
 
 `deli` is intended to be used on browsers using webassembly. So, make sure to compile your project with
@@ -53,9 +53,12 @@ writing data to the store.
 - `#[deli(name)]`: In indexed DB, by default, it creates a new object store with name of the struct (in the above
   example, it'll create an object store `Employee` in indexed db) when creating a database. To change the default
   object store name, use `#[deli(name = "your_object_store_name")]`.
-
 - `#[deli(store_name)]`: By default, the derive macro will create a `<ModelName>Store` struct (in the above example,
   it'll create a `EmployeeStore` struct). To change the default name, use `#[deli(store_name = "YourStoreName")]`.
+- `#[deli(cursor_name)]`: By default, the derive macro will create a `<ModelName>Cursor` struct. To change the
+  default name, use `#[deli(cursor_name = "YourCursorName")]`
+- `#[deli(key_cursor_name)]`: By default, the derive macro will create a `<ModelName>KeyCursor` struct. To change
+  the default name, use `#[deli(key_cursor_name = "YourKeyCursorName")]`
 
 ##### Field attributes
 

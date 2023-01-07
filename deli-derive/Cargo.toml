@@ -1,6 +1,6 @@
 [package]
 name = "deli-derive"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A convenience wrapper on `idb` crate for easily creating and managing object stores in an indexed db on browsers using derive macros"
