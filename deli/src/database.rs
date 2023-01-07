@@ -13,12 +13,12 @@ pub struct Database {
 impl Database {
     /// Creates a new instance of [`Database`]
     pub async fn new(name: String, version: u32) -> Result<Self, Error> {
-        Self::builder(name, version).build().await
+        Self::builder(name).version(version).build().await
     }
 
     /// Returns a builder for [`Database`]
-    pub fn builder(name: String, version: u32) -> DatabaseBuilder {
-        DatabaseBuilder::new(name, version)
+    pub fn builder(name: String) -> DatabaseBuilder {
+        DatabaseBuilder::new(name)
     }
 
     /// Returns the name of database
@@ -62,18 +62,24 @@ impl Drop for Database {
 /// A builder for [`Database`]
 pub struct DatabaseBuilder {
     name: String,
-    version: u32,
+    version: Option<u32>,
     models: Vec<Box<dyn Fn(VersionChangeEvent) + 'static>>,
 }
 
 impl DatabaseBuilder {
     /// Creates a new instance of [`DatabaseBuilder`]
-    pub fn new(name: String, version: u32) -> Self {
+    pub fn new(name: String) -> Self {
         DatabaseBuilder {
             name,
-            version,
+            version: None,
             models: Vec::new(),
         }
+    }
+
+    /// Set database version
+    pub fn version(&mut self, version: u32) -> &mut Self {
+        self.version = Some(version);
+        self
     }
 
     /// Registers a [`Model`]

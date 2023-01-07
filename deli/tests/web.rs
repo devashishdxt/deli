@@ -19,7 +19,8 @@ struct Employee {
 async fn create_database() -> Result<Database, Error> {
     let _ = Database::delete("test_db").await;
 
-    Database::builder("test_db".to_string(), 1)
+    Database::builder("test_db".to_string())
+        .version(1)
         .register_model::<Employee>()
         .build()
         .await
