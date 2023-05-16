@@ -80,7 +80,7 @@ Next step is to create a new `Database` and register your models with it.
 use deli::{Database, Error};
 
 async fn create_database() -> Result<Database, Error> {
-    let database = Database.builder("test_db", 1).register_model::<Employee>().await?;
+    let database = Database::builder("test_db", 1).register_model::<Employee>().await?;
 }
 ```
 
