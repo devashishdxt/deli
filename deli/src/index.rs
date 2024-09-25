@@ -135,7 +135,7 @@ where
         };
 
         if let Some(offset) = offset {
-            cursor.advance(offset)?.await?;
+            cursor.advance(offset).await?;
         }
 
         match limit {
@@ -146,7 +146,7 @@ where
                     match cursor.get_value()? {
                         Some(value) => {
                             values.push(value);
-                            cursor.advance(1)?.await?;
+                            cursor.advance(1).await?;
                         }
                         None => break,
                     }
@@ -159,7 +159,7 @@ where
 
                 while let Some(value) = cursor.get_value()? {
                     values.push(value);
-                    cursor.advance(1)?.await?;
+                    cursor.advance(1).await?;
                 }
 
                 Ok(values)
@@ -184,7 +184,7 @@ where
         };
 
         if let Some(offset) = offset {
-            cursor.advance(offset)?.await?;
+            cursor.advance(offset).await?;
         }
 
         match limit {
@@ -195,7 +195,7 @@ where
                     match cursor.get_key()? {
                         Some(value) => {
                             keys.push(value);
-                            cursor.advance(1)?.await?;
+                            cursor.advance(1).await?;
                         }
                         None => break,
                     }
@@ -208,7 +208,7 @@ where
 
                 while let Some(value) = cursor.get_key()? {
                     keys.push(value);
-                    cursor.advance(1)?.await?;
+                    cursor.advance(1).await?;
                 }
 
                 Ok(keys)

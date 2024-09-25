@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use idb::request::{DeleteStoreRequest, OpenCursorStoreRequest};
-
 use crate::{Error, Model, Transaction};
 
 /// Cursor on an object store or index
@@ -41,12 +39,14 @@ where
     }
 
     /// Advances the cursor
-    pub fn advance(&mut self, count: u32) -> Result<OpenCursorStoreRequest, Error> {
-        self.cursor.advance(count).map_err(Into::into)
+    pub async fn advance(&mut self, count: u32) -> Result<Option<Self>, Error> {
+        self.cursor.advance(count)?.await.map_err(Into::into).map(|cursor| {
+            cursor.map(|cursor| Cursor::new(self._transaction, cursor))
+        })
     }
 
     /// Deletes the entry at current cursor position
-    pub fn delete(&self) -> Result<DeleteStoreRequest, Error> {
-        self.cursor.delete().map_err(Into::into)
+    pub async fn delete(&self) -> Result<(), Error> {
+        self.cursor.delete()?.await.map_err(Into::into)
     }
 }
