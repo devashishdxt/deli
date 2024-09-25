@@ -160,7 +160,7 @@ mod specific_key_range;
 mod store;
 mod transaction;
 
-pub use idb::{CursorDirection as Direction, VersionChangeEvent};
+pub use idb::{event::VersionChangeEvent, CursorDirection as Direction};
 
 pub use self::{
     cursor::Cursor,

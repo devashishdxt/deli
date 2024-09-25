@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use idb::VersionChangeEvent;
+use idb::event::VersionChangeEvent;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{Cursor, Error, KeyCursor, Store, Transaction};
