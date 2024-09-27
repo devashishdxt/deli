@@ -135,7 +135,11 @@ where
         };
 
         if let Some(offset) = offset {
-            cursor.advance(offset).await?;
+            if let Some(new_cursor) = cursor.advance(offset).await? {
+                *cursor = new_cursor;
+            } else {
+                return Ok(Vec::new());
+            }
         }
 
         match limit {
@@ -146,7 +150,11 @@ where
                     match cursor.get_value()? {
                         Some(value) => {
                             values.push(value);
-                            cursor.advance(1).await?;
+                            if let Some(new_cursor) = cursor.advance(1).await? {
+                                *cursor = new_cursor;
+                            } else {
+                                break;
+                            }
                         }
                         None => break,
                     }
@@ -159,7 +167,11 @@ where
 
                 while let Some(value) = cursor.get_value()? {
                     values.push(value);
-                    cursor.advance(1).await?;
+                    if let Some(new_cursor) = cursor.advance(1).await? {
+                        *cursor = new_cursor;
+                    } else {
+                        break;
+                    }
                 }
 
                 Ok(values)
@@ -184,7 +196,11 @@ where
         };
 
         if let Some(offset) = offset {
-            cursor.advance(offset).await?;
+            if let Some(new_cursor) = cursor.advance(offset).await? {
+                *cursor = new_cursor;
+            } else {
+                return Ok(Vec::new());
+            }
         }
 
         match limit {
@@ -195,7 +211,11 @@ where
                     match cursor.get_key()? {
                         Some(value) => {
                             keys.push(value);
-                            cursor.advance(1).await?;
+                            if let Some(new_cursor) = cursor.advance(1).await? {
+                                *cursor = new_cursor;
+                            } else {
+                                break;
+                            }
                         }
                         None => break,
                     }
@@ -208,7 +228,11 @@ where
 
                 while let Some(value) = cursor.get_key()? {
                     keys.push(value);
-                    cursor.advance(1).await?;
+                    if let Some(new_cursor) = cursor.advance(1).await? {
+                        *cursor = new_cursor;
+                    } else {
+                        break;
+                    }
                 }
 
                 Ok(keys)

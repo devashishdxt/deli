@@ -40,9 +40,11 @@ where
 
     /// Advances the cursor
     pub async fn advance(&mut self, count: u32) -> Result<Option<Self>, Error> {
-        self.cursor.advance(count)?.await.map_err(Into::into).map(|cursor| {
-            cursor.map(|cursor| Cursor::new(self._transaction, cursor))
-        })
+        self.cursor
+            .advance(count)?
+            .await
+            .map_err(Into::into)
+            .map(|cursor| cursor.map(|cursor| Cursor::new(self._transaction, cursor)))
     }
 
     /// Deletes the entry at current cursor position
