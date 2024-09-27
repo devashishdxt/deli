@@ -135,11 +135,7 @@ where
         };
 
         if let Some(offset) = offset {
-            if let Some(new_cursor) = cursor.advance(offset).await? {
-                *cursor = new_cursor;
-            } else {
-                return Ok(Vec::new());
-            }
+            cursor.advance(offset).await?;
         }
 
         match limit {
@@ -150,11 +146,7 @@ where
                     match cursor.get_value()? {
                         Some(value) => {
                             values.push(value);
-                            if let Some(new_cursor) = cursor.advance(1).await? {
-                                *cursor = new_cursor;
-                            } else {
-                                break;
-                            }
+                            cursor.advance(1).await?;
                         }
                         None => break,
                     }
@@ -167,11 +159,7 @@ where
 
                 while let Some(value) = cursor.get_value()? {
                     values.push(value);
-                    if let Some(new_cursor) = cursor.advance(1).await? {
-                        *cursor = new_cursor;
-                    } else {
-                        break;
-                    }
+                    cursor.advance(1).await?;
                 }
 
                 Ok(values)
@@ -196,11 +184,7 @@ where
         };
 
         if let Some(offset) = offset {
-            if let Some(new_cursor) = cursor.advance(offset).await? {
-                *cursor = new_cursor;
-            } else {
-                return Ok(Vec::new());
-            }
+            cursor.advance(offset).await?;
         }
 
         match limit {
@@ -211,11 +195,7 @@ where
                     match cursor.get_key()? {
                         Some(value) => {
                             keys.push(value);
-                            if let Some(new_cursor) = cursor.advance(1).await? {
-                                *cursor = new_cursor;
-                            } else {
-                                break;
-                            }
+                            cursor.advance(1).await?;
                         }
                         None => break,
                     }
@@ -228,11 +208,7 @@ where
 
                 while let Some(value) = cursor.get_key()? {
                     keys.push(value);
-                    if let Some(new_cursor) = cursor.advance(1).await? {
-                        *cursor = new_cursor;
-                    } else {
-                        break;
-                    }
+                    cursor.advance(1).await?;
                 }
 
                 Ok(keys)
@@ -255,7 +231,7 @@ where
             .open_cursor(query.into().try_into()?, direction)?
             .await?;
 
-        Ok(cursor.map(|c| Cursor::new(self.transaction, c).into()))
+        Ok(cursor.map(|c| Cursor::new(self.transaction, c.into()).into()))
     }
 
     /// Returns a key cursor on index
@@ -273,6 +249,6 @@ where
             .open_key_cursor(query.into().try_into()?, direction)?
             .await?;
 
-        Ok(cursor.map(|c| KeyCursor::new(self.transaction, c).into()))
+        Ok(cursor.map(|c| KeyCursor::new(self.transaction, c.into()).into()))
     }
 }
