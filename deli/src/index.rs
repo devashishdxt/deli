@@ -40,7 +40,7 @@ where
         K: Serialize + ?Sized + 'a,
     {
         self.index
-            .count(query.into().try_into()?)
+            .count(query.into().try_into()?)?
             .await
             .map_err(Into::into)
     }
@@ -52,7 +52,7 @@ where
         K: Serialize + ?Sized,
     {
         let key = key.serialize(&Serializer::json_compatible())?;
-        let js_value = self.index.get(key).await?;
+        let js_value = self.index.get(key)?.await?;
         js_value
             .and_then(|js_value| {
                 serde_wasm_bindgen::from_value(js_value)
@@ -69,7 +69,7 @@ where
         K: Serialize + ?Sized,
     {
         let key = key.serialize(&Serializer::json_compatible())?;
-        let js_value = self.index.get_key(key).await?;
+        let js_value = self.index.get_key(key)?.await?;
         js_value
             .and_then(|js_value| {
                 serde_wasm_bindgen::from_value(js_value)
@@ -89,7 +89,7 @@ where
         T: Borrow<K>,
         K: Serialize + ?Sized + 'a,
     {
-        let js_values = self.index.get_all(query.into().try_into()?, limit).await?;
+        let js_values = self.index.get_all(query.into().try_into()?, limit)?.await?;
 
         js_values
             .into_iter()
@@ -109,7 +109,7 @@ where
     {
         let js_keys = self
             .index
-            .get_all_keys(query.into().try_into()?, limit)
+            .get_all_keys(query.into().try_into()?, limit)?
             .await?;
 
         js_keys
@@ -228,10 +228,10 @@ where
     {
         let cursor = self
             .index
-            .open_cursor(query.into().try_into()?, direction)
+            .open_cursor(query.into().try_into()?, direction)?
             .await?;
 
-        Ok(cursor.map(|c| Cursor::new(self.transaction, c).into()))
+        Ok(cursor.map(|c| Cursor::new(self.transaction, c.into()).into()))
     }
 
     /// Returns a key cursor on index
@@ -246,9 +246,9 @@ where
     {
         let cursor = self
             .index
-            .open_key_cursor(query.into().try_into()?, direction)
+            .open_key_cursor(query.into().try_into()?, direction)?
             .await?;
 
-        Ok(cursor.map(|c| KeyCursor::new(self.transaction, c).into()))
+        Ok(cursor.map(|c| KeyCursor::new(self.transaction, c.into()).into()))
     }
 }

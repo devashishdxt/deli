@@ -1,6 +1,6 @@
 use std::mem::take;
 
-use idb::{Transaction as IdbTransaction, TransactionMode};
+use idb::{Transaction as IdbTransaction, TransactionMode, TransactionResult};
 
 use crate::{Database, Error, Model, Store};
 
@@ -19,18 +19,18 @@ impl Transaction {
     }
 
     /// Commits the transaction
-    pub async fn commit(self) -> Result<(), Error> {
-        self.transaction.commit().await.map_err(Into::into)
+    pub async fn commit(self) -> Result<TransactionResult, Error> {
+        self.transaction.commit()?.await.map_err(Into::into)
     }
 
     /// Waits for transaction to finish
-    pub async fn done(self) -> Result<(), Error> {
-        self.transaction.abort().await.map_err(Into::into)
+    pub async fn done(self) -> Result<TransactionResult, Error> {
+        self.transaction.abort()?.await.map_err(Into::into)
     }
 
     /// Aborts the transaction
-    pub async fn abort(self) -> Result<(), Error> {
-        self.transaction.abort().await.map_err(Into::into)
+    pub async fn abort(self) -> Result<TransactionResult, Error> {
+        self.transaction.abort()?.await.map_err(Into::into)
     }
 
     /// Returns the stores in transaction

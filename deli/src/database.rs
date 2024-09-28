@@ -1,6 +1,6 @@
 use std::mem::take;
 
-use idb::{Database as IdbDatabase, Factory, VersionChangeEvent};
+use idb::{event::VersionChangeEvent, Database as IdbDatabase, Factory};
 
 use crate::{Error, Model, TransactionBuilder};
 
@@ -44,7 +44,7 @@ impl Database {
     /// Deletes a database
     pub async fn delete(name: &str) -> Result<(), Error> {
         let factory = Factory::new()?;
-        factory.delete(name).await.map_err(Into::into)
+        factory.delete(name)?.await.map_err(Into::into)
     }
 
     /// Returns the inner [`IdbDatabase`] handle
@@ -105,7 +105,13 @@ impl DatabaseBuilder {
         });
 
         let mut database = open_request.await?;
-        database.on_version_change(|database| database.close());
+        database.on_version_change(|version_change_event| {
+            version_change_event.current_target().map(|target| {
+                target.try_into().map(|database: IdbDatabase| {
+                    database.close();
+                })
+            });
+        });
 
         Ok(Database { database })
     }

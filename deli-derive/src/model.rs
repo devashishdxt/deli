@@ -110,6 +110,7 @@ impl Model {
                 type KeyCursor<'transaction> = #key_cursor_name <'transaction>;
 
                 fn handle_upgrade(event: ::deli::VersionChangeEvent) {
+                    use idb::DatabaseEvent;
                     let database = event.database().unwrap();
                     #object_store
                     #(#indexes)*
