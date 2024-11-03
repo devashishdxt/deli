@@ -1,3 +1,4 @@
+use crate::model_field::IntoType;
 use darling::{error::Accumulator, Error};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -12,7 +13,7 @@ use crate::{
 #[derive(Debug)]
 pub struct FieldContext<'a> {
     pub ident: &'a Ident,
-    pub key: &'a ModelField,
+    pub keys: Vec<&'a ModelField>,
     pub indexes: Vec<&'a ModelField>,
     pub creation_fields: Vec<&'a ModelField>,
     pub updation_fields: Vec<&'a ModelField>,
@@ -96,12 +97,17 @@ impl<'a> FieldContext<'a> {
 
     /// Returns the token stream for object store params
     fn store_params(&self) -> TokenStream {
-        let name = self.key.name();
+        let names: Vec<_> = self.keys.iter().map(|field| field.name()).collect();
 
-        let key_path =
-            quote! { params.key_path(Some(::deli::reexports::idb::KeyPath::new_single(#name))); };
+        let key_path = quote! { params.key_path(Some(::deli::reexports::idb::KeyPath::new_array([
+            #(#names.into(),)*
+        ]))); };
 
-        let auto_increment = if self.key.auto_increment.is_present() {
+        let auto_increment = if self
+            .keys
+            .iter()
+            .any(|field| field.auto_increment.is_present())
+        {
             quote! { params.auto_increment(true); }
         } else {
             quote! {}
@@ -118,7 +124,7 @@ impl<'a> FieldContext<'a> {
     /// Returns token stream for add function
     pub fn add_fn(&self) -> Result<TokenStream, Error> {
         let (generics, signature, where_clause) = fn_signature(&self.creation_fields)?;
-        let key_type = &self.key.ty;
+        let key_type = self.keys.into_type();
         let fields_json = fields_json(&self.creation_fields);
 
         Ok(quote! {
@@ -133,7 +139,7 @@ impl<'a> FieldContext<'a> {
     /// Returns token stream for update function
     pub fn update_fn(&self) -> Result<TokenStream, Error> {
         let (generics, signature, where_clause) = fn_signature(&self.updation_fields)?;
-        let key_type = &self.key.ty;
+        let key_type = self.keys.into_type();
         let fields_json = fields_json(&self.updation_fields);
 
         Ok(quote! {
@@ -178,7 +184,7 @@ impl<'a> FieldContext<'a> {
 #[derive(Debug)]
 struct FieldContextBuilder<'a> {
     ident: &'a Ident,
-    key: Option<&'a ModelField>,
+    keys: Vec<&'a ModelField>,
     indexes: Vec<&'a ModelField>,
     creation_fields: Vec<&'a ModelField>,
     updation_fields: Vec<&'a ModelField>,
@@ -189,7 +195,7 @@ impl<'a> FieldContextBuilder<'a> {
     fn new(ident: &'a Ident) -> Self {
         Self {
             ident,
-            key: Default::default(),
+            keys: Default::default(),
             indexes: Default::default(),
             creation_fields: Default::default(),
             updation_fields: Default::default(),
@@ -197,15 +203,31 @@ impl<'a> FieldContextBuilder<'a> {
         }
     }
 
+    fn has_auto_increment(&self) -> bool {
+        self.keys
+            .iter()
+            .any(|field| field.auto_increment.is_present())
+    }
+
     /// Adds a field to builder
     fn with_field(&mut self, field: &'a ModelField) {
         if field.key.is_present() || field.auto_increment.is_present() {
-            match self.key {
-                Some(_) => self.accumulator.push(
-                    Error::custom(format!("multiple keys defined for model {}", self.ident))
-                        .with_span(&self.ident.span()),
-                ),
-                None => self.key = Some(field),
+            if self.keys.is_empty()
+                || !field.auto_increment.is_present() && !self.has_auto_increment()
+            {
+                self.keys.push(field);
+            } else {
+                self.accumulator.push(
+                    Error::custom(format!(
+                        concat!(
+                            "You have already provided an auto increment field for model {}. ",
+                            "You can't have neither multiple auto increment fields nor ",
+                            "a key field after an auto increment field."
+                        ),
+                        self.ident,
+                    ))
+                    .with_span(&self.ident.span()),
+                );
             }
         } else if field.index.is_present()
             || field.unique.is_present()
@@ -223,7 +245,7 @@ impl<'a> FieldContextBuilder<'a> {
 
     /// Builds field context
     fn build(mut self) -> Result<FieldContext<'a>, Error> {
-        if self.key.is_none() {
+        if self.keys.is_empty() {
             self.accumulator.push(
                 Error::custom(format!("no key defined for model {}", self.ident))
                     .with_span(&self.ident.span()),
@@ -232,11 +254,9 @@ impl<'a> FieldContextBuilder<'a> {
 
         self.accumulator.finish()?;
 
-        let key = self.key.unwrap(); // We just checked this value above and pushed the error in accumulator
-
         Ok(FieldContext {
             ident: self.ident,
-            key,
+            keys: self.keys,
             indexes: self.indexes,
             creation_fields: self.creation_fields,
             updation_fields: self.updation_fields,
