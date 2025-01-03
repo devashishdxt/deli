@@ -5,6 +5,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Generics, Ident, LitStr, Visibility};
 
+use crate::model_field::IntoType;
 use crate::{field_context::FieldContext, model_field::ModelField};
 
 #[derive(Debug, FromDeriveInput)]
@@ -84,7 +85,7 @@ impl Model {
 
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
-        let key_type = &field_context.key.ty;
+        let key_type = field_context.keys.into_type();
         let object_store = field_context.object_store();
         let indexes = field_context.indexes();
 
