@@ -1,6 +1,6 @@
 [package]
 name = "deli"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A convenience wrapper on `idb` crate for easily creating and managing object stores in an indexed db on browsers using derive macros"
@@ -11,16 +11,16 @@ keywords = ["wasm", "indexeddb", "future", "webassembly", "idb"]
 readme = "README.md"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["derive"]
+derive = ["dep:deli-derive"]
 
 [dependencies]
-deli-derive = { version = "0.1.1", path = "../deli-derive" }
-idb = "0.6.3"
-serde = "1.0.210"
-serde-wasm-bindgen = "0.6.5"
-serde_json = "1.0.128"
-thiserror = "1.0.64"
+deli-derive = { version = "0.2.0", path = "../deli-derive", optional = true }
+idb = { version = "0.6", features = ["builder"] }
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+thiserror = "2"
 
 [dev-dependencies]
-serde = { version = "1.0.210", features = ["derive"] }
-wasm-bindgen-test = "0.3.43"
+wasm-bindgen-test = "0.3"

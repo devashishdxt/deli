@@ -1,6 +1,6 @@
 [package]
 name = "deli-derive"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A convenience wrapper on `idb` crate for easily creating and managing object stores in an indexed db on browsers using derive macros"
@@ -15,7 +15,8 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-darling = "0.20.1"
-proc-macro2 = "1.0.59"
-quote = "1.0.28"
-syn = "2.0.18"
+darling = "0.20"
+ident_case = "1"
+proc-macro2 = "1"
+quote = "1"
+syn = "2"

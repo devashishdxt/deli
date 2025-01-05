@@ -1,23 +1,20 @@
-use std::mem::take;
+use crate::{
+    database_builder::DatabaseBuilder, error::Error, transaction_builder::TransactionBuilder,
+};
 
-use idb::{event::VersionChangeEvent, Database as IdbDatabase, Factory};
-
-use crate::{Error, Model, TransactionBuilder};
-
-/// [`Database`] provides connection to an indexed db database
+/// Provides connection to an indexed db database
 #[derive(Debug)]
 pub struct Database {
-    database: IdbDatabase,
+    database: idb::Database,
 }
 
 impl Database {
-    /// Creates a new instance of [`Database`]
-    pub async fn new(name: String, version: u32) -> Result<Self, Error> {
-        Self::builder(name).version(version).build().await
+    pub(crate) fn new(database: idb::Database) -> Self {
+        Self { database }
     }
 
     /// Returns a builder for [`Database`]
-    pub fn builder(name: String) -> DatabaseBuilder {
+    pub fn builder(name: &str) -> DatabaseBuilder {
         DatabaseBuilder::new(name)
     }
 
@@ -43,76 +40,10 @@ impl Database {
 
     /// Deletes a database
     pub async fn delete(name: &str) -> Result<(), Error> {
-        let factory = Factory::new()?;
-        factory.delete(name)?.await.map_err(Into::into)
+        idb::Factory::new()?.delete(name)?.await.map_err(Into::into)
     }
 
-    /// Returns the inner [`IdbDatabase`] handle
-    pub(crate) fn database(&self) -> &IdbDatabase {
+    pub(crate) fn as_idb_database(&self) -> &idb::Database {
         &self.database
-    }
-}
-
-impl Drop for Database {
-    fn drop(&mut self) {
-        self.close()
-    }
-}
-
-/// A builder for [`Database`]
-pub struct DatabaseBuilder {
-    name: String,
-    version: Option<u32>,
-    models: Vec<Box<dyn Fn(VersionChangeEvent) + 'static>>,
-}
-
-impl DatabaseBuilder {
-    /// Creates a new instance of [`DatabaseBuilder`]
-    pub fn new(name: String) -> Self {
-        DatabaseBuilder {
-            name,
-            version: None,
-            models: Vec::new(),
-        }
-    }
-
-    /// Set database version
-    pub fn version(&mut self, version: u32) -> &mut Self {
-        self.version = Some(version);
-        self
-    }
-
-    /// Registers a [`Model`]
-    pub fn register_model<M>(&mut self) -> &mut Self
-    where
-        M: Model,
-    {
-        self.models.push(Box::new(|event| M::handle_upgrade(event)));
-        self
-    }
-
-    /// Builds an instance of [`Database`]
-    pub async fn build(&mut self) -> Result<Database, Error> {
-        let factory = Factory::new()?;
-        let mut open_request = factory.open(&self.name, self.version)?;
-
-        let models = take(&mut self.models);
-
-        open_request.on_upgrade_needed(move |event| {
-            for model in models.into_iter() {
-                model(event.clone());
-            }
-        });
-
-        let mut database = open_request.await?;
-        database.on_version_change(|version_change_event| {
-            version_change_event.current_target().map(|target| {
-                target.try_into().map(|database: IdbDatabase| {
-                    database.close();
-                })
-            });
-        });
-
-        Ok(Database { database })
     }
 }

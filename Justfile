@@ -23,4 +23,4 @@ test-firefox-headless:
 # Generate readme from doc comments
 readme:
     @echo 'Generating README...'
-    cd deli && cargo readme > ../README.md
+    cd deli && cargo readme > README.md

@@ -1,205 +1,174 @@
 use std::{
-    borrow::Borrow,
     marker::PhantomData,
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
 };
 
 use idb::Query;
-use serde::{de::DeserializeOwned, Serialize};
-use serde_wasm_bindgen::Serializer;
+use serde::Serialize;
 
-use crate::{Error, Model};
+use crate::{error::Error, JSON_SERIALIZER};
 
-/// Defines the range of keys
-#[derive(Debug)]
-pub struct KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
-    inner: KeyRangeInner<'a, K>,
-    _generis_model: PhantomData<M>,
-    _generics_key_type: PhantomData<T>,
+pub trait Sealed {}
+
+/// Trait for range types.
+pub trait RangeType: Sealed {}
+
+/// Denotes a bounded range.
+pub struct BoundedRange;
+
+impl RangeType for BoundedRange {}
+impl Sealed for BoundedRange {}
+
+/// Denotes an unbounded range.
+pub struct UnboundedRange;
+
+impl RangeType for UnboundedRange {}
+impl Sealed for UnboundedRange {}
+
+/// Represents a continuous interval over some data type that is used for keys.
+pub struct KeyRange<'a, K: ?Sized, R> {
+    inner: KeyRangeInner<'a, K, R>,
 }
 
-#[derive(Debug)]
-enum KeyRangeInner<'a, K>
-where
-    K: Serialize + ?Sized,
-{
-    Singe(&'a K),
+/// Represents a continuous interval over some data type that is used for keys.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeyRangeInner<'a, K: ?Sized, R> {
+    Single(&'a K),
     Range(Range<&'a K>),
     RangeInclusive(RangeInclusive<&'a K>),
     RangeFrom(RangeFrom<&'a K>),
     RangeTo(RangeTo<&'a K>),
     RangeToInclusive(RangeToInclusive<&'a K>),
-    RangeFull(RangeFull),
+    RangeFull(RangeFull, PhantomData<R>),
 }
 
-impl<'a, M, T, K> From<&'a K> for KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
-    fn from(single: &'a K) -> Self {
+impl<'a, K: ?Sized, R> From<&'a K> for KeyRange<'a, K, R> {
+    fn from(k: &'a K) -> Self {
         Self {
-            inner: KeyRangeInner::Singe(single),
-            _generis_model: Default::default(),
-            _generics_key_type: Default::default(),
+            inner: KeyRangeInner::Single(k),
         }
     }
 }
 
-impl<'a, M, T, K> From<Range<&'a K>> for KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
+impl<'a, K: ?Sized, R> From<Range<&'a K>> for KeyRange<'a, K, R> {
     fn from(range: Range<&'a K>) -> Self {
         Self {
             inner: KeyRangeInner::Range(range),
-            _generis_model: Default::default(),
-            _generics_key_type: Default::default(),
         }
     }
 }
 
-impl<'a, M, T, K> From<RangeInclusive<&'a K>> for KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
+impl<'a, K: ?Sized, R> From<RangeInclusive<&'a K>> for KeyRange<'a, K, R> {
     fn from(range: RangeInclusive<&'a K>) -> Self {
         Self {
             inner: KeyRangeInner::RangeInclusive(range),
-            _generis_model: Default::default(),
-            _generics_key_type: Default::default(),
         }
     }
 }
 
-impl<'a, M, T, K> From<RangeFrom<&'a K>> for KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
+impl<'a, K: ?Sized, R> From<RangeFrom<&'a K>> for KeyRange<'a, K, R> {
     fn from(range: RangeFrom<&'a K>) -> Self {
         Self {
             inner: KeyRangeInner::RangeFrom(range),
-            _generis_model: Default::default(),
-            _generics_key_type: Default::default(),
         }
     }
 }
 
-impl<'a, M, T, K> From<RangeTo<&'a K>> for KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
+impl<'a, K: ?Sized, R> From<RangeTo<&'a K>> for KeyRange<'a, K, R> {
     fn from(range: RangeTo<&'a K>) -> Self {
         Self {
             inner: KeyRangeInner::RangeTo(range),
-            _generis_model: Default::default(),
-            _generics_key_type: Default::default(),
         }
     }
 }
 
-impl<'a, M, T, K> From<RangeToInclusive<&'a K>> for KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
+impl<'a, K: ?Sized, R> From<RangeToInclusive<&'a K>> for KeyRange<'a, K, R> {
     fn from(range: RangeToInclusive<&'a K>) -> Self {
         Self {
             inner: KeyRangeInner::RangeToInclusive(range),
-            _generis_model: Default::default(),
-            _generics_key_type: Default::default(),
         }
     }
 }
 
-impl<'a, M, T, K> From<RangeFull> for KeyRange<'a, M, T, K>
-where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
-{
-    fn from(range: RangeFull) -> Self {
+impl<K: ?Sized> From<RangeFull> for KeyRange<'_, K, UnboundedRange> {
+    fn from(_: RangeFull) -> Self {
         Self {
-            inner: KeyRangeInner::RangeFull(range),
-            _generis_model: Default::default(),
-            _generics_key_type: Default::default(),
+            inner: KeyRangeInner::RangeFull(RangeFull, PhantomData),
         }
     }
 }
 
-impl<'a, M, T, K> TryFrom<KeyRange<'a, M, T, K>> for Option<Query>
+impl<'a, K: ?Sized, R> TryFrom<&KeyRange<'a, K, R>> for Option<Query>
 where
-    M: Model,
-    T: Serialize + DeserializeOwned,
-    T: Borrow<K>,
-    K: Serialize + ?Sized,
+    K: Serialize,
+    R: RangeType,
 {
     type Error = Error;
 
-    fn try_from(key_range: KeyRange<'a, M, T, K>) -> Result<Self, Self::Error> {
-        match key_range.inner {
-            KeyRangeInner::Singe(singe) => {
-                let js_value = singe.serialize(&Serializer::json_compatible())?;
+    fn try_from(value: &KeyRange<'a, K, R>) -> Result<Self, Self::Error> {
+        match &value.inner {
+            KeyRangeInner::Single(k) => {
+                let js_value = k.serialize(&JSON_SERIALIZER)?;
                 Ok(Some(Query::Key(js_value)))
             }
             KeyRangeInner::Range(range) => {
-                let lower = range.start.serialize(&Serializer::json_compatible())?;
-                let upper = range.end.serialize(&Serializer::json_compatible())?;
+                let lower = range.start.serialize(&JSON_SERIALIZER)?;
+                let upper = range.end.serialize(&JSON_SERIALIZER)?;
 
-                let key_range = idb::KeyRange::bound(&lower, &upper, Some(false), Some(true))?;
-
-                Ok(Some(Query::KeyRange(key_range)))
+                Ok(Some(Query::KeyRange(idb::KeyRange::bound(
+                    &lower,
+                    &upper,
+                    Some(false),
+                    Some(true),
+                )?)))
             }
             KeyRangeInner::RangeInclusive(range) => {
-                let lower = range.start().serialize(&Serializer::json_compatible())?;
-                let upper = range.end().serialize(&Serializer::json_compatible())?;
+                let lower = range.start().serialize(&JSON_SERIALIZER)?;
+                let upper = range.end().serialize(&JSON_SERIALIZER)?;
 
-                let key_range = idb::KeyRange::bound(&lower, &upper, Some(false), Some(false))?;
-
-                Ok(Some(Query::KeyRange(key_range)))
+                Ok(Some(Query::KeyRange(idb::KeyRange::bound(
+                    &lower,
+                    &upper,
+                    Some(false),
+                    Some(false),
+                )?)))
             }
             KeyRangeInner::RangeFrom(range) => {
-                let lower = range.start.serialize(&Serializer::json_compatible())?;
-                let key_range = idb::KeyRange::lower_bound(&lower, Some(false))?;
+                let lower = range.start.serialize(&JSON_SERIALIZER)?;
 
-                Ok(Some(Query::KeyRange(key_range)))
+                Ok(Some(Query::KeyRange(idb::KeyRange::lower_bound(
+                    &lower,
+                    Some(false),
+                )?)))
             }
             KeyRangeInner::RangeTo(range) => {
-                let upper = range.end.serialize(&Serializer::json_compatible())?;
-                let key_range = idb::KeyRange::upper_bound(&upper, Some(true))?;
+                let upper = range.end.serialize(&JSON_SERIALIZER)?;
 
-                Ok(Some(Query::KeyRange(key_range)))
+                Ok(Some(Query::KeyRange(idb::KeyRange::upper_bound(
+                    &upper,
+                    Some(true),
+                )?)))
             }
             KeyRangeInner::RangeToInclusive(range) => {
-                let upper = range.end.serialize(&Serializer::json_compatible())?;
-                let key_range = idb::KeyRange::upper_bound(&upper, Some(false))?;
+                let upper = range.end.serialize(&JSON_SERIALIZER)?;
 
-                Ok(Some(Query::KeyRange(key_range)))
+                Ok(Some(Query::KeyRange(idb::KeyRange::upper_bound(
+                    &upper,
+                    Some(false),
+                )?)))
             }
-            KeyRangeInner::RangeFull(_) => Ok(None),
+            KeyRangeInner::RangeFull(_, _) => Ok(None),
         }
+    }
+}
+
+impl<'a, K: ?Sized> TryFrom<&KeyRange<'a, K, BoundedRange>> for Query
+where
+    K: Serialize,
+{
+    type Error = Error;
+
+    fn try_from(value: &KeyRange<'a, K, BoundedRange>) -> Result<Self, Self::Error> {
+        Ok(<Option<Query>>::try_from(value)?.unwrap())
     }
 }

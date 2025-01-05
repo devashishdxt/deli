@@ -1,14 +1,18 @@
 use std::borrow::Cow;
 
-use darling::{util::Flag, FromField};
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{Ident, LitStr, Type};
+use darling::{
+    util::{Flag, Override},
+    FromField,
+};
+use syn::{Attribute, Ident, LitStr, Type, Visibility};
+
+use crate::index_meta::FieldIndexMeta;
 
 #[derive(Debug, FromField)]
-#[darling(attributes(deli))]
+#[darling(attributes(deli), forward_attrs(allow, doc, serde))]
 pub struct ModelField {
     pub ident: Option<Ident>,
+    pub vis: Visibility,
     pub ty: Type,
     #[darling(default)]
     pub rename: Option<LitStr>,
@@ -17,66 +21,34 @@ pub struct ModelField {
     #[darling(default)]
     pub auto_increment: Flag,
     #[darling(default)]
-    pub index: Flag,
+    pub index: Option<Override<FieldIndexMeta>>,
     #[darling(default)]
-    pub unique: Flag,
+    pub unique: Option<Override<FieldIndexMeta>>,
     #[darling(default)]
-    pub multi_entry: Flag,
+    pub multi_entry: Option<Override<FieldIndexMeta>>,
+    pub attrs: Vec<Attribute>,
 }
 
 impl ModelField {
-    /// Returns the identifier of the field
     pub fn ident(&self) -> &Ident {
         self.ident.as_ref().unwrap()
     }
 
-    /// Returns the name of the field
-    pub fn name(&self) -> Cow<'_, LitStr> {
-        match self.rename {
+    pub fn is_key(&self) -> bool {
+        self.key.is_present() || self.auto_increment.is_present()
+    }
+
+    pub fn is_index(&self) -> bool {
+        self.index.is_some() || self.unique.is_some() || self.multi_entry.is_some()
+    }
+
+    pub fn get_name_str(&self) -> Cow<'_, LitStr> {
+        match &self.rename {
+            Some(rename) => Cow::Borrowed(rename),
             None => {
-                let ident = self.ident();
+                let ident = self.ident.as_ref().unwrap();
                 Cow::Owned(LitStr::new(&ident.to_string(), ident.span()))
             }
-            Some(ref rename) => Cow::Borrowed(rename),
-        }
-    }
-}
-
-pub trait IntoType {
-    fn into_type(&self) -> TokenStream;
-}
-
-impl IntoType for ModelField {
-    fn into_type(&self) -> TokenStream {
-        let key_type = self.ty.clone();
-        quote! { #key_type }
-    }
-}
-
-impl IntoType for &ModelField {
-    fn into_type(&self) -> TokenStream {
-        let key_type = self.ty.clone();
-        quote! { #key_type }
-    }
-}
-
-impl<T: IntoType> IntoType for Vec<T> {
-    fn into_type(&self) -> TokenStream {
-        if self.is_empty() {
-            panic!("Cannot convert empty vector to type");
-        }
-        if self.len() == 1 {
-            self[0].into_type()
-        } else {
-            let mut types = self
-                .iter()
-                .map(|field| field.into_type())
-                .collect::<Vec<_>>();
-            let first = types.remove(0);
-            let rest = types.iter().map(|ty| {
-                quote! { #ty }
-            });
-            quote! { (#first, #(#rest),*) }
         }
     }
 }

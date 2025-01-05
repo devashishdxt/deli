@@ -1,11 +1,10 @@
-use deli::{Database, Direction, Error, Model, Transaction};
-use serde::Deserialize;
+use deli::{Database, Error, Model, Transaction};
+use serde::{Deserialize, Serialize};
 use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
-#[derive(Debug, Deserialize, Model)]
-#[allow(dead_code)]
+#[derive(Debug, Serialize, Deserialize, Model)]
 struct Employee {
     #[deli(auto_increment)]
     id: u32,
@@ -13,15 +12,15 @@ struct Employee {
     #[deli(unique)]
     email: String,
     #[deli(index)]
-    age: u8,
+    age: u32,
 }
 
 async fn create_database() -> Result<Database, Error> {
     let _ = Database::delete("test_db").await;
 
-    Database::builder("test_db".to_string())
+    Database::builder("test_db")
         .version(1)
-        .register_model::<Employee>()
+        .add_model::<Employee>()
         .build()
         .await
 }
@@ -61,7 +60,14 @@ async fn test_value_add() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id = store.add("Alice", "alice@example.com", &25).await.unwrap();
+    let id = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
 
     transaction.commit().await.unwrap();
 
@@ -87,10 +93,22 @@ async fn test_value_update() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id = store.add("Alice", "alice@example.com", &25).await.unwrap();
+    let id = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
 
     let update_id = store
-        .update(&id, "Bob", "bob@example.com", &30)
+        .update(&Employee {
+            id,
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
         .await
         .unwrap();
 
@@ -123,16 +141,30 @@ async fn test_count() {
     let count = store.count(..).await.unwrap();
     assert_eq!(count, 0);
 
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id1 = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
+    let id2 = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
 
     let count = store.count(..).await.unwrap();
     assert_eq!(count, 2);
 
-    let count = store.count(&0..&id2).await.unwrap();
+    let count = store.count(..&id2).await.unwrap();
     assert_eq!(count, 1);
 
-    let count = store.count(&id2..=&id2).await.unwrap();
+    let count = store.count(&id2).await.unwrap();
     assert_eq!(count, 1);
 
     let count = store.count(&id1..=&id2).await.unwrap();
@@ -152,8 +184,22 @@ async fn test_get_all() {
     let count = store.count(..).await.unwrap();
     assert_eq!(count, 0);
 
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id1 = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
+    let id2 = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
 
     let all_employees = store.get_all(.., None).await.unwrap();
 
@@ -216,8 +262,22 @@ async fn test_get_all_keys() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id1 = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
+    let id2 = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
 
     let all_employees = store.get_all_keys(.., None).await.unwrap();
 
@@ -246,169 +306,27 @@ async fn test_get_all_keys() {
 }
 
 #[wasm_bindgen_test]
-async fn test_scan() {
-    let database = create_database().await.unwrap();
-    let transaction = begin_write_transaction(&database).unwrap();
-    let store = Employee::with_transaction(&transaction).unwrap();
-
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
-
-    let forward_employees = store
-        .scan(.., Some(Direction::Next), None, None)
-        .await
-        .unwrap();
-
-    let backward_employees = store
-        .scan(.., Some(Direction::Prev), None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(forward_employees.len(), 2);
-    assert_eq!(backward_employees.len(), 2);
-
-    assert_eq!(forward_employees[0].id, backward_employees[1].id);
-    assert_eq!(forward_employees[0].name, backward_employees[1].name);
-    assert_eq!(forward_employees[0].email, backward_employees[1].email);
-    assert_eq!(forward_employees[0].age, backward_employees[1].age);
-
-    assert_eq!(forward_employees[1].id, backward_employees[0].id);
-    assert_eq!(forward_employees[1].name, backward_employees[0].name);
-    assert_eq!(forward_employees[1].email, backward_employees[0].email);
-    assert_eq!(forward_employees[1].age, backward_employees[0].age);
-
-    let forward_employees = store
-        .scan(.., Some(Direction::Next), Some(1), None)
-        .await
-        .unwrap();
-
-    let backward_employees = store
-        .scan(.., Some(Direction::Prev), Some(1), None)
-        .await
-        .unwrap();
-
-    assert_eq!(forward_employees.len(), 1);
-    assert_eq!(backward_employees.len(), 1);
-
-    if forward_employees[0].id == id1 {
-        assert_eq!(forward_employees[0].id, id1);
-        assert_eq!(forward_employees[0].name, "Alice");
-        assert_eq!(forward_employees[0].email, "alice@example.com");
-        assert_eq!(forward_employees[0].age, 25);
-
-        assert_eq!(backward_employees[0].id, id2);
-        assert_eq!(backward_employees[0].name, "Bob");
-        assert_eq!(backward_employees[0].email, "bob@example.com");
-        assert_eq!(backward_employees[0].age, 30);
-    } else {
-        assert_eq!(backward_employees[0].id, id1);
-        assert_eq!(backward_employees[0].name, "Alice");
-        assert_eq!(backward_employees[0].email, "alice@example.com");
-        assert_eq!(backward_employees[0].age, 25);
-
-        assert_eq!(forward_employees[0].id, id2);
-        assert_eq!(forward_employees[0].name, "Bob");
-        assert_eq!(forward_employees[0].email, "bob@example.com");
-        assert_eq!(forward_employees[0].age, 30);
-    }
-
-    let forward_employees = store
-        .scan(.., Some(Direction::Next), Some(1), Some(1))
-        .await
-        .unwrap();
-
-    let backward_employees = store
-        .scan(.., Some(Direction::Prev), Some(1), None)
-        .await
-        .unwrap();
-
-    assert_eq!(forward_employees.len(), 1);
-    assert_eq!(backward_employees.len(), 1);
-
-    assert_eq!(forward_employees[0].id, backward_employees[0].id);
-    assert_eq!(forward_employees[0].name, backward_employees[0].name);
-    assert_eq!(forward_employees[0].email, backward_employees[0].email);
-    assert_eq!(forward_employees[0].age, backward_employees[0].age);
-
-    transaction.done().await.expect("transaction done");
-
-    close_and_delete_database(database).await.unwrap();
-}
-
-#[wasm_bindgen_test]
-async fn test_scan_keys() {
-    let database = create_database().await.unwrap();
-    let transaction = begin_write_transaction(&database).unwrap();
-    let store = Employee::with_transaction(&transaction).unwrap();
-
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
-
-    let forward_employees = store
-        .scan_keys(.., Some(Direction::Next), None, None)
-        .await
-        .unwrap();
-
-    let backward_employees = store
-        .scan_keys(.., Some(Direction::Prev), None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(forward_employees.len(), 2);
-    assert_eq!(backward_employees.len(), 2);
-
-    assert_eq!(forward_employees[0], backward_employees[1]);
-    assert_eq!(forward_employees[1], backward_employees[0]);
-
-    let forward_employees = store
-        .scan_keys(.., Some(Direction::Next), Some(1), None)
-        .await
-        .unwrap();
-
-    let backward_employees = store
-        .scan_keys(.., Some(Direction::Prev), Some(1), None)
-        .await
-        .unwrap();
-
-    assert_eq!(forward_employees.len(), 1);
-    assert_eq!(backward_employees.len(), 1);
-
-    if forward_employees[0] == id1 {
-        assert_eq!(forward_employees[0], id1);
-        assert_eq!(backward_employees[0], id2);
-    } else {
-        assert_eq!(backward_employees[0], id1);
-        assert_eq!(forward_employees[0], id2);
-    }
-
-    let forward_employees = store
-        .scan_keys(.., Some(Direction::Next), Some(1), Some(1))
-        .await
-        .unwrap();
-
-    let backward_employees = store
-        .scan_keys(.., Some(Direction::Prev), Some(1), None)
-        .await
-        .unwrap();
-
-    assert_eq!(forward_employees.len(), 1);
-    assert_eq!(backward_employees.len(), 1);
-
-    assert_eq!(forward_employees[0], backward_employees[0]);
-
-    transaction.done().await.expect("transaction done");
-
-    close_and_delete_database(database).await.unwrap();
-}
-
-#[wasm_bindgen_test]
 async fn test_delete() {
     let database = create_database().await.unwrap();
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id1 = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
+    let id2 = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
 
     let employee1 = store.get(&id1).await.unwrap();
     let employee2 = store.get(&id2).await.unwrap();
@@ -443,10 +361,32 @@ async fn test_unique_index() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    store.add("Alice", "alice@example.com", &25).await.unwrap();
+    store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
 
-    let err = store.add("Bob", "alice@example.com", &30).await;
-    assert!(err.is_err(), "{}", err.unwrap());
+    let err = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 30,
+        })
+        .await;
+    assert!(err.is_err(), "{:?}", err.unwrap());
+
+    let transaction_result = transaction.done().await;
+    assert!(
+        transaction_result.is_err(),
+        "{:?}",
+        transaction_result.unwrap()
+    );
+
+    close_and_delete_database(database).await.unwrap();
 }
 
 #[wasm_bindgen_test]
@@ -455,13 +395,39 @@ async fn test_count_by_index() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    store.add("Alice", "alice@example.com", &25).await.unwrap();
-    store.add("Bob", "bob@example.com", &30).await.unwrap();
     store
-        .add("Charlie", "charlie@example.com", &35)
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
         .await
         .unwrap();
-    store.add("Dave", "dave@example.com", &40).await.unwrap();
+    store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
+
+    store
+        .add(&AddEmployee {
+            name: "Charlie".to_string(),
+            email: "charlie@example.com".to_string(),
+            age: 35,
+        })
+        .await
+        .unwrap();
+    store
+        .add(&AddEmployee {
+            name: "Dave".to_string(),
+            email: "dave@example.com".to_string(),
+            age: 40,
+        })
+        .await
+        .unwrap();
 
     let count = store.by_age().unwrap().count(..).await.unwrap();
     assert_eq!(count, 4);
@@ -483,11 +449,25 @@ async fn test_get_by_index() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
+    let id1 = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
+    let id2 = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
 
     let employee1 = store
-        .by_email()
+        .by_email_unique()
         .unwrap()
         .get("alice@example.com")
         .await
@@ -499,7 +479,7 @@ async fn test_get_by_index() {
     assert_eq!(employee1.id, id1);
 
     let employee2 = store
-        .by_email()
+        .by_email_unique()
         .unwrap()
         .get("bob@example.com")
         .await
@@ -521,10 +501,17 @@ async fn test_get_key_by_index() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id = store.add("Alice", "alice@example.com", &25).await.unwrap();
+    let id = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
+        .await
+        .unwrap();
 
     let key = store
-        .by_email()
+        .by_email_unique()
         .unwrap()
         .get_key("alice@example.com")
         .await
@@ -546,13 +533,39 @@ async fn test_get_all_by_index() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
-    let id3 = store
-        .add("Charlie", "charlie@example.com", &35)
+    let id1 = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
         .await
         .unwrap();
-    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
+    let id2 = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
+
+    let id3 = store
+        .add(&AddEmployee {
+            name: "Charlie".to_string(),
+            email: "charlie@example.com".to_string(),
+            age: 35,
+        })
+        .await
+        .unwrap();
+    let id4 = store
+        .add(&AddEmployee {
+            name: "Dave".to_string(),
+            email: "dave@example.com".to_string(),
+            age: 40,
+        })
+        .await
+        .unwrap();
 
     let employees = store.by_age().unwrap().get_all(..=&30, None).await.unwrap();
 
@@ -600,13 +613,39 @@ async fn test_get_all_keys_by_index() {
     let transaction = begin_write_transaction(&database).unwrap();
     let store = Employee::with_transaction(&transaction).unwrap();
 
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
-    let id3 = store
-        .add("Charlie", "charlie@example.com", &35)
+    let id1 = store
+        .add(&AddEmployee {
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+            age: 25,
+        })
         .await
         .unwrap();
-    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
+    let id2 = store
+        .add(&AddEmployee {
+            name: "Bob".to_string(),
+            email: "bob@example.com".to_string(),
+            age: 30,
+        })
+        .await
+        .unwrap();
+
+    let id3 = store
+        .add(&AddEmployee {
+            name: "Charlie".to_string(),
+            email: "charlie@example.com".to_string(),
+            age: 35,
+        })
+        .await
+        .unwrap();
+    let id4 = store
+        .add(&AddEmployee {
+            name: "Dave".to_string(),
+            email: "dave@example.com".to_string(),
+            age: 40,
+        })
+        .await
+        .unwrap();
 
     let employees = store
         .by_age()
@@ -627,17 +666,18 @@ async fn test_get_all_keys_by_index() {
     let employees = store
         .by_age()
         .unwrap()
-        .get_all_keys(&35..&40, None)
+        .get_all_keys(&30..&40, None)
         .await
         .unwrap();
 
-    assert_eq!(employees.len(), 1);
-    assert_eq!(employees[0], id3);
+    assert_eq!(employees.len(), 2);
+    assert_eq!(employees[0], id2);
+    assert_eq!(employees[1], id3);
 
     let employees = store
         .by_age()
         .unwrap()
-        .get_all_keys(&35..=&40, Some(1))
+        .get_all_keys(&30..=&40, Some(1))
         .await
         .unwrap();
 
@@ -652,136 +692,6 @@ async fn test_get_all_keys_by_index() {
 
     assert_eq!(employees.len(), 1);
     assert_eq!(employees[0], id4);
-
-    transaction.done().await.expect("transaction done");
-
-    close_and_delete_database(database).await.unwrap();
-}
-
-#[wasm_bindgen_test]
-async fn test_scan_by_index() {
-    let database = create_database().await.unwrap();
-    let transaction = begin_write_transaction(&database).unwrap();
-    let store = Employee::with_transaction(&transaction).unwrap();
-
-    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
-    let id3 = store
-        .add("Charlie", "charlie@example.com", &35)
-        .await
-        .unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan(..=&30, Some(Direction::Next), None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 2);
-
-    assert_eq!(employees[0].id, id1);
-    assert_eq!(employees[1].id, id2);
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan(&31.., Some(Direction::Prev), None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 2);
-
-    assert_eq!(employees[0].id, id4);
-    assert_eq!(employees[1].id, id3);
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan(..=&30, Some(Direction::Next), Some(1), None)
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 1);
-
-    assert_eq!(employees[0].id, id1);
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan(..=&30, Some(Direction::Next), None, Some(1))
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 1);
-
-    assert_eq!(employees[0].id, id2);
-
-    transaction.done().await.expect("transaction done");
-
-    close_and_delete_database(database).await.unwrap();
-}
-
-#[wasm_bindgen_test]
-async fn test_scan_keys_by_index() {
-    let database = create_database().await.unwrap();
-    let transaction = begin_write_transaction(&database).unwrap();
-    let store = Employee::with_transaction(&transaction).unwrap();
-
-    let id4 = store.add("Dave", "dave@example.com", &40).await.unwrap();
-    let id3 = store
-        .add("Charlie", "charlie@example.com", &35)
-        .await
-        .unwrap();
-    let id2 = store.add("Bob", "bob@example.com", &30).await.unwrap();
-    let id1 = store.add("Alice", "alice@example.com", &25).await.unwrap();
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan_keys(..=&30, Some(Direction::Next), None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 2);
-
-    assert_eq!(employees[0], id1);
-    assert_eq!(employees[1], id2);
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan_keys(&31.., Some(Direction::Prev), None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 2);
-
-    assert_eq!(employees[0], id4);
-    assert_eq!(employees[1], id3);
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan_keys(..=&30, Some(Direction::Next), Some(1), None)
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 1);
-
-    assert_eq!(employees[0], id1);
-
-    let employees = store
-        .by_age()
-        .unwrap()
-        .scan_keys(..=&30, Some(Direction::Next), None, Some(1))
-        .await
-        .unwrap();
-
-    assert_eq!(employees.len(), 1);
-
-    assert_eq!(employees[0], id2);
 
     transaction.done().await.expect("transaction done");
 

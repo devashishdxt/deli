@@ -1,15 +1,32 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code, unstable_features)]
-//! Deli is a convenience wrapper on `idb` crate for easily creating and managing object stores in an indexed db on
-//! browsers using derive macros.
+//! `deli` is a Rust crate that simplifies working with IndexedDB in the browser using WebAssembly. It provides an
+//! ergonomic way to define data models that are seamlessly converted into IndexedDB object stores, utilizing derive
+//! macros to eliminate boilerplate code.
+//!
+//! With deli, you can define your data structures using familiar Rust syntax while annotating them with attributes to
+//! specify keys, unique constraints, and indexes. The crate integrates with `serde` for serialization and
+//! deserialization, ensuring a smooth workflow.
+//!
+//! # Features
+//!
+//! - Automatically map Rust structs to IndexedDB object stores.
+//! - Define primary keys, unique constraints, and indexed fields with simple annotations.
+//! - Leverages serde for seamless serialization and deserialization.
+//! - Write concise, readable, and maintainable data models.
 //!
 //! # Usage
 //!
-//! To use `deli`, you need to add the following in your `Cargo.toml`:
+//! To use `deli`, run the following command in your project directory:
 //!
-//! ```toml
-//! [dependencies]
-//! deli = "0.2"
+//! ```sh
+//! cargo add deli
+//! ```
+//!
+//! In addition to the `deli` crate, you'll need to add `serde` with `derive` feature enabled:
+//!
+//! ```sh
+//! cargo add serde --features derive
 //! ```
 //!
 //! `deli` is intended to be used on browsers using webassembly. So, make sure to compile your project with
@@ -21,98 +38,133 @@
 //! target = "wasm32-unknown-unknown"
 //! ```
 //!
-//! ## Example
+//! ## `Model` derive macro
 //!
-//! ### Defining a `Model`
+//! To map a Rust struct to an IndexedDB object store, you need to derive the `Model` trait on the struct. The `Model`
+//! derive macro generates the necessary code to create an object store with the specified keys, unique constraints, and
+//! indexes.
 //!
-//! The first step is to define your data model using `Model` derive macro. You also need to implement
-//! `serde::Serialize` and `serde::Deserialize` trait for your model so that the data can be converted to `json` before
-//! saving it into the store.
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)] // <- This derives the Model trait on the struct and creates an object store.
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     id: u32,
+//!     name: String,
+//!     #[deli(unique)]
+//!     email: String,
+//!     #[deli(index)]
+//!     age: u32,
+//! }
+//! ```
+//!
+//! This example defines an `Employee` struct that will be mapped to an IndexedDB object store. The `id` field is
+//! annotated with `#[deli(auto_increment)]` to specify that it should be an auto-incrementing primary key. The `email`
+//! field is annotated with `#[deli(unique)]` to create a unique constraint, and the `age` field is annotated with
+//! `#[deli(index)]` to create an index for faster lookups.
+//!
+//! You can modify the name of the object store in Indexed DB and the name of generated object store struct as follows:
 //!
 //! ```rust
 //! use deli::Model;
 //! use serde::{Deserialize, Serialize};
 //!
 //! #[derive(Serialize, Deserialize, Model)]
+//! #[deli(object_store_name = "employees", object_store_struct = "EmployeeStore")] // <- This changes the object store name and object store struct name
 //! pub struct Employee {
 //!     #[deli(auto_increment)]
-//!     pub id: u32,
-//!     pub name: String,
+//!     id: u32,
+//!     name: String,
 //!     #[deli(unique)]
-//!     pub email: String,
+//!     email: String,
 //!     #[deli(index)]
-//!     pub age: u8,
+//!     age: u32,
 //! }
 //! ```
 //!
-//! `Model` derive macro automatically implements `Model` trait for your struct and creates a `Store` for accessing and
-//! writing data to the store.
+//! By default, the object store name is the lowercase version of the struct name (`employee`). The object store struct
+//! name is the struct name followed by `Store` (`EmployeeStore`).
 //!
-//! #### Container attributes
-//!
-//! - `#[deli(name)]`: In indexed DB, by default, it creates a new object store with name of the struct (in the above
-//!   example, it'll create an object store `Employee` in indexed db) when creating a database. To change the default
-//!   object store name, use `#[deli(name = "your_object_store_name")]`.
-//! - `#[deli(store_name)]`: By default, the derive macro will create a `<ModelName>Store` struct (in the above example,
-//!   it'll create a `EmployeeStore` struct). To change the default name, use `#[deli(store_name = "YourStoreName")]`.
-//! - `#[deli(cursor_name)]`: By default, the derive macro will create a `<ModelName>Cursor` struct. To change the
-//!   default name, use `#[deli(cursor_name = "YourCursorName")]`
-//! - `#[deli(key_cursor_name)]`: By default, the derive macro will create a `<ModelName>KeyCursor` struct. To change
-//!   the default name, use `#[deli(key_cursor_name = "YourKeyCursorName")]`
-//!
-//! #### Field attributes
-//!
-//! - `#[deli(key)]`: Defines the primary key path for object store.
-//! - `#[deli(auto_increment)]`: Defines the primary key path for object store with `auto_increment` values (implies
-//!   `#[deli(key)]`).
-//! - `#[deli(index)]`: Creates an index for the field.
-//! - `#[deli(unique)]`: Creates an unique index for the field (implies `#[deli(index)]`).
-//! - `#[deli(multi_entry)]`: Creates a multi entry index for the field (implies `#[deli(index)]`).
-//! - `#[deli(rename)]`: Rename a field in object store. Note that this should be consistent with `serde` serialization.
-//!   For example, if you use `#[serde(rename_all = "camelCase")]` you need to appropriately rename the fields for
-//!   `deli` to be in sync with serde serialization.
-//!
-//! ### Creating a `Database`
-//!
-//! Next step is to create a new `Database` and register your models with it.
+//! To use the generated object store, you need to create a database as follows:
 //!
 //! ```rust
 //! use deli::{Database, Error};
 //!
 //! async fn create_database() -> Result<Database, Error> {
-//!     let database = Database::builder("test_db", 1).register_model::<Employee>().await?;
+//!     Database::builder("test_db")
+//!         .version(1)
+//!         .add_model::<Employee>()
+//!         .build()
+//!         .await
 //! }
 //! ```
 //!
-//! ### Starting a `Transaction`
-//!
-//! Once you've created a `Database` instance, you can start reading and writing data to database using transactions.
+//! Next, you'll need to begin a transaction to interact with the object store:
 //!
 //! ```rust
 //! use deli::{Database, Error, Transaction};
 //!
 //! fn create_read_transaction(database: &Database) -> Result<Transaction, Error> {
-//!     database.transaction().with_model::<Employee>().build()
+//!     database
+//!         .transaction()
+//!         .with_model::<Employee>()
+//!         .build()
 //! }
 //!
 //! fn create_write_transaction(database: &Database) -> Result<Transaction, Error> {
-//!     database.transaction().writable().with_model::<Employee>().build()
+//!     database
+//!         .transaction()
+//!         .writable()
+//!         .with_model::<Employee>()
+//!         .build()
 //! }
 //! ```
 //!
-//! You can add multiple `.with_model::<Model>()` calls to add more than one model to the transaction.
-//!
-//! ### Reading and writing data to a `Model` store
-//!
-//! Once you have a transaction for a model, you can read or write data to that model. `Model` derive macro generates a
-//! static method on the model struct named `with_transaction` which can be used to obtain store for that model.
+//! To add a record in the object store:
 //!
 //! ```rust
 //! use deli::{Error, Transaction};
 //!
-//! async fn add_employee(transaction: &Transaction) -> Result<u32, Error> {
-//!     Employee::with_transaction(transaction)?.add("Alice", "alice@example.com", &25).await
+//! async fn add_employee(transaction: &Transaction, employee: &AddEmployee) -> Result<u32, Error> {
+//!     Employee::with_transaction(transaction)?.add(employee).await
 //! }
+//! ```
+//!
+//! The `AddEmployee` struct is generated by the `Model` derive macro and is used to add a new employee to the object
+//! store. By default, the name of the struct is `Add` followed by the name of the model struct. To customize the name
+//! of the struct, you can use the `add_struct_name` attribute in the `Model` derive macro.
+//!
+//! For example:
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! #[deli(add_struct_name = "EmployeeAdd")]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     id: u32,
+//!     name: String,
+//!     #[deli(unique)]
+//!     email: String,
+//!     #[deli(index)]
+//!     age: u32,
+//! }
+//! ```
+//!
+//! The `AddEmployee` struct contains the same fields as the `Employee` struct, except the `id` field because it is an
+//! auto-incrementing primary key.
+//!
+//! In general, all the fields except for auto-incrementing primary keys should be present in the `Add` struct. If your
+//! model does not have any auto-incrementing primary keys, you can use the original struct to add new records.
+//!
+//! To query records from the object store:
+//!
+//! ```rust
+//! use deli::{Error, Transaction};
 //!
 //! async fn get_employee(transaction: &Transaction, id: u32) -> Result<Option<Employee>, Error> {
 //!     Employee::with_transaction(transaction)?.get(&id).await
@@ -132,11 +184,11 @@
 //! }
 //! ```
 //!
-//! ### Commiting a `Transaction`
-//!
-//! After all your writes are done, you can commit the transaction:
+//! After all the operations are done, you can commit the transaction:
 //!
 //! ```rust
+//! use deli::{Error, Transaction};
+//!
 //! async fn commit_transaction(transaction: Transaction) -> Result<(), Error> {
 //!     transaction.commit().await
 //! }
@@ -147,32 +199,313 @@
 //!
 //! Also, be careful when using long-lived indexed db transactions as the behavior may change depending on the browser.
 //! For example, the transaction may get auto-committed when doing IO (network request) in the event loop.
+//!
+//! ## Primary keys
+//!
+//! In IndexedDB, each object store must have a primary key. `deli` supports three types of primary keys:
+//!
+//! - Auto-incrementing primary keys
+//! - Non auto-incrementing primary keys
+//! - Composite primary keys
+//!
+//! Indexed DB also supports not specifying a primary key, in which case it implicitly creates an auto-incrementing
+//! primary key. However, `deli` requires you to explicitly define a primary key.
+//!
+//! ### Defining auto-incrementing primary keys
+//!
+//! To define an auto-incrementing primary key, you can use the `#[deli(auto_increment)]` attribute on the field.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)] // <- This defines an auto-incrementing primary key
+//!     pub id: u32,
+//! }
+//! ```
+//!
+//! ### Defining non auto-incrementing primary keys
+//!
+//! To define a non auto-incrementing primary key, you can use the `#[deli(key)]` attribute on the field.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(key)] // <- This defines a non auto-incrementing primary key
+//!     pub id: u32,
+//! }
+//! ```
+//!
+//! ### Defining composite primary keys
+//!
+//! To define composite primary keys, you can use the `#[deli(key)]` attribute on the struct with all the field names
+//! that are part of the composite key.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! #[deli(key(id, name))] // <- This defines a composite primary key
+//! pub struct Employee {
+//!     id: u32,
+//!     name: String,
+//! }
+//! ```
+//!
+//! ## Indexes
+//!
+//! In IndexedDB, you can create indexes on fields to speed up queries and add constraints. `deli` supports six types of
+//! indexes:
+//!
+//! - Single field indexes
+//! - Single field unique indexes
+//! - Single field multi-entry indexes
+//! - Composite indexes
+//! - Composite unique indexes
+//! - Composite multi-entry indexes
+//!
+//! ### Defining single field indexes
+//!
+//! To define a single field index, you can use the `#[deli(index)]` attribute on the field.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     pub id: u32,
+//!     #[deli(index)] // <- This defines a single field index on the `name` field for faster lookups
+//!     pub name: String,
+//! }
+//! ```
+//!
+//! The `Model` derive macro generates a struct for each index. By default, the name of the struct is the name of the
+//! model followed by the name of the field followed by `Index` in pascal case (`EmployeeNameIndex`). You can customize
+//! the name of the generated struct by using the `struct_name` attribute in the `deli(index)` attribute.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     pub id: u32,
+//!     #[deli(index(struct_name = "MyEmployeeNameIndex"))] // <- This changes the name of the generated struct to `NameIndex`
+//!     pub name: String,
+//! }
+//! ```
+//!
+//! The `Model` derive macro also generates a name for the index to be used in the object store. By default, the name of
+//! the index is the name of the model followed by the name of the field followed by `index` in snake case
+//! (`employee_name_index`). You can customize the name of the index by using the `name` attribute in the `deli(index)`
+//! attribute.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     pub id: u32,
+//!     #[deli(index(name = "my_employee_name_index"))] // <- This changes the name of the index to `my_employee_name_index`
+//!     pub name: String,
+//! }
+//! ```
+//!
+//! > Note that the default naming convention for the generated struct and index name is different for different index
+//! > types.
+//!
+//! ### Defining single field unique indexes
+//!
+//! To define a single field unique index, you can use the `#[deli(unique)]` attribute on the field.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     pub id: u32,
+//!     #[deli(unique)] // <- This defines a single field unique index on the `email` field
+//!     pub email: String,
+//! }
+//! ```
+//!
+//! ### Defining single field multi-entry indexes
+//!
+//! To define a single field multi-entry index, you can use the `#[deli(multi_entry)]` attribute on the field.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     pub id: u32,
+//!     #[deli(multi_entry)] // <- This defines a single field multi-entry index on the `permissions` field
+//!     pub permissions: Vec<String>,
+//! }
+//! ```
+//!
+//! ### Defining composite indexes
+//!
+//! To define composite indexes, you can use the `#[deli(index)]` attribute on the struct with all the field names that
+//! are part of the composite index.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! #[deli(index(fields(id, name)))] // <- This defines a composite index on the `id` and `name` fields
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     id: u32,
+//!     name: String,
+//! }
+//! ```
+//!
+//! ### Defining composite unique indexes
+//!
+//! To define composite unique indexes, you can use the `#[deli(unique)]` attribute on the struct with all the field
+//! names that are part of the composite unique index.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! #[deli(unique(fields(id, name)))] // <- This defines a composite unique index on the `id` and `name` fields
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     id: u32,
+//!     name: String,
+//! }
+//! ```
+//!
+//! ### Defining composite multi-entry indexes
+//!
+//! To define composite multi-entry indexes, you can use the `#[deli(multi_entry)]` attribute on the struct with all the
+//! fields that are part of the composite multi-entry index.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! #[deli(unique(fields(id, permissions)))] // <- This defines a composite multi-entry index on the `id` and `permissions` fields
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     id: u32,
+//!     permissions: Vec<String>,
+//! }
+//! ```
+//!
+//! ## Using indexes
+//!
+//! `Model` derive macro generates a function to get [`Index`] for each index. You can use this function to interact
+//! with the index.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     pub id: u32,
+//!     #[deli(index)]
+//!     pub name: String,
+//! }
+//!
+//! async fn get_employee_by_name(transaction: &Transaction, name: &str) -> Result<Option<Employee>, Error> {
+//!     Employee::with_transaction(transaction)?.by_name().get(name).await
+//! }
+//! ```
+//!
+//! Here are the naming conventions for the generated functions:
+//!
+//! - Single field indexes: `by_{field_name}`
+//! - Single field unique indexes: `by_{field_name}_unique`
+//! - Single field multi-entry indexes: `by_{field_name}_multi_entry`
+//! - Composite indexes: `by_{field_name1}_{field_name2}_composite`
+//! - Composite unique indexes: `by_{field_name1}_{field_name2}_composite_unique`
+//! - Composite multi-entry indexes: `by_{field_name1}_{field_name2}_composite_multi_entry`
+//!
+//! ## Field renaming
+//!
+//! If you use `#[serde(rename = "new_name")]` attribute on a field, you also need to use `#[deli(rename = "new_name")]`
+//! attribute to specify the new name of the field in the object store.
+//!
+//! ```rust
+//! use deli::Model;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Model)]
+//! pub struct Employee {
+//!     #[deli(auto_increment)]
+//!     pub id: u32,
+//!     #[serde(rename = "emailAddress")]
+//!     #[deli(rename = "emailAddress")] // <- This renames the field to `emailAddress` in the object store
+//!     pub email: String,
+//! }
+//! ```
+//!
+//! If you use `#[serde(rename_all = "camelCase")]` attribute on the struct, you have to use
+//! `#[deli(rename = "new_name")]` for each field individually. Unfortunately, `deli` does not support renaming all
+//! fields at once.
 mod cursor;
 mod database;
+mod database_builder;
 mod error;
 mod index;
 mod key_cursor;
 mod key_range;
 mod model;
-#[doc(hidden)]
-pub mod reexports;
-mod specific_key_range;
-mod store;
+mod model_index;
+mod object_store;
 mod transaction;
+mod transaction_builder;
 
-pub use idb::{event::VersionChangeEvent, CursorDirection as Direction};
+#[doc(inline)]
+pub use idb::{CursorDirection, TransactionMode, TransactionResult};
 
 pub use self::{
     cursor::Cursor,
-    database::{Database, DatabaseBuilder},
+    database::Database,
+    database_builder::DatabaseBuilder,
     error::Error,
     index::Index,
     key_cursor::KeyCursor,
-    key_range::KeyRange,
+    key_range::{BoundedRange, KeyRange, RangeType, UnboundedRange},
     model::Model,
-    specific_key_range::SpecificKeyRange,
-    store::Store,
-    transaction::{Transaction, TransactionBuilder},
+    model_index::ModelIndex,
+    object_store::ObjectStore,
+    transaction::Transaction,
+    transaction_builder::TransactionBuilder,
 };
 
+const JSON_SERIALIZER: serde_wasm_bindgen::Serializer =
+    serde_wasm_bindgen::Serializer::json_compatible();
+
+/// Re-exports of the `deli` crate.
+#[doc(hidden)]
+pub mod reexports {
+    pub use idb;
+    pub use serde;
+}
+
+#[cfg(feature = "derive")]
 pub use deli_derive::Model;
