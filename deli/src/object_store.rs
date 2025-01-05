@@ -6,28 +6,30 @@ use serde::Serialize;
 use crate::{
     cursor::Cursor,
     error::Error,
+    index::Index,
     key_cursor::KeyCursor,
     key_range::{BoundedRange, KeyRange, UnboundedRange},
     model::Model,
     model_index::ModelIndex,
     transaction::Transaction,
+    JSON_SERIALIZER,
 };
 
-/// Provides access to an index in a database.
+/// Represents an object store in a database.
 #[derive(Debug)]
-pub struct Index<'t, I> {
-    index: idb::Index,
+pub struct ObjectStore<'t, M> {
+    object_store: idb::ObjectStore,
     transaction: &'t Transaction,
-    _model: std::marker::PhantomData<I>,
+    _model: std::marker::PhantomData<M>,
 }
 
-impl<'t, I> Index<'t, I>
+impl<'t, M> ObjectStore<'t, M>
 where
-    I: ModelIndex,
+    M: Model,
 {
-    pub(crate) fn new(object_store: idb::Index, transaction: &'t Transaction) -> Self {
+    pub(crate) fn new(object_store: idb::ObjectStore, transaction: &'t Transaction) -> Self {
         Self {
-            index: object_store,
+            object_store,
             transaction,
             _model: std::marker::PhantomData,
         }
@@ -37,12 +39,12 @@ where
     pub async fn get<'a, Q>(
         &self,
         key_range: impl Into<KeyRange<'a, Q, BoundedRange>>,
-    ) -> Result<Option<I::Model>, Error>
+    ) -> Result<Option<M>, Error>
     where
-        I::Key: Borrow<Q>,
+        M::Key: Borrow<Q>,
         Q: Serialize + ?Sized + 'a,
     {
-        self.index
+        self.object_store
             .get(Query::try_from(&key_range.into())?)?
             .await?
             .map(serde_wasm_bindgen::from_value)
@@ -54,12 +56,12 @@ where
     pub async fn get_key<'a, Q>(
         &self,
         key_range: impl Into<KeyRange<'a, Q, BoundedRange>>,
-    ) -> Result<Option<<I::Model as Model>::Key>, Error>
+    ) -> Result<Option<M::Key>, Error>
     where
-        I::Key: Borrow<Q>,
+        M::Key: Borrow<Q>,
         Q: Serialize + ?Sized + 'a,
     {
-        self.index
+        self.object_store
             .get_key(Query::try_from(&key_range.into())?)?
             .await?
             .map(serde_wasm_bindgen::from_value)
@@ -72,12 +74,12 @@ where
         &self,
         key_range: impl Into<KeyRange<'a, Q, UnboundedRange>>,
         limit: Option<u32>,
-    ) -> Result<Vec<I::Model>, Error>
+    ) -> Result<Vec<M>, Error>
     where
-        I::Key: Borrow<Q>,
+        M::Key: Borrow<Q>,
         Q: Serialize + ?Sized + 'a,
     {
-        self.index
+        self.object_store
             .get_all(<Option<Query>>::try_from(&key_range.into())?, limit)?
             .await?
             .into_iter()
@@ -91,12 +93,12 @@ where
         &self,
         key_range: impl Into<KeyRange<'a, Q, UnboundedRange>>,
         limit: Option<u32>,
-    ) -> Result<Vec<<I::Model as Model>::Key>, Error>
+    ) -> Result<Vec<M::Key>, Error>
     where
-        I::Key: Borrow<Q>,
+        M::Key: Borrow<Q>,
         Q: Serialize + ?Sized + 'a,
     {
-        self.index
+        self.object_store
             .get_all_keys(<Option<Query>>::try_from(&key_range.into())?, limit)?
             .await?
             .into_iter()
@@ -105,16 +107,54 @@ where
             .map_err(Into::into)
     }
 
+    /// Adds a record to the store returning its key
+    pub async fn add(&self, value: &M::Add) -> Result<M::Key, Error> {
+        let value = value.serialize(&JSON_SERIALIZER)?;
+        let js_key = self.object_store.add(&value, None)?.await?;
+        serde_wasm_bindgen::from_value(js_key).map_err(Into::into)
+    }
+
+    /// Updates a record in the store returning its key
+    pub async fn update<V>(&self, value: &V) -> Result<M::Key, Error>
+    where
+        M: Borrow<V>,
+        V: Serialize,
+    {
+        let value = value.serialize(&JSON_SERIALIZER)?;
+        let js_key = self.object_store.put(&value, None)?.await?;
+        serde_wasm_bindgen::from_value(js_key).map_err(Into::into)
+    }
+
+    /// Deletes records in store with the given key range.
+    pub async fn delete<'a, Q>(
+        &self,
+        key_range: impl Into<KeyRange<'a, Q, BoundedRange>>,
+    ) -> Result<(), Error>
+    where
+        M::Key: Borrow<Q>,
+        Q: Serialize + ?Sized + 'a,
+    {
+        self.object_store
+            .delete(Query::try_from(&key_range.into())?)?
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Clears all records in the store.
+    pub async fn delete_all(&self) -> Result<(), Error> {
+        self.object_store.clear()?.await.map_err(Into::into)
+    }
+
     /// Retrieves the number of records matching the given key range.
     pub async fn count<'a, Q>(
         &self,
         key_range: impl Into<KeyRange<'a, Q, UnboundedRange>>,
     ) -> Result<u32, Error>
     where
-        I::Key: Borrow<Q>,
+        M::Key: Borrow<Q>,
         Q: Serialize + ?Sized + 'a,
     {
-        self.index
+        self.object_store
             .count(<Option<Query>>::try_from(&key_range.into())?)?
             .await
             .map_err(Into::into)
@@ -125,13 +165,13 @@ where
         &self,
         key_range: impl Into<KeyRange<'a, Q, UnboundedRange>>,
         cursor_direction: Option<CursorDirection>,
-    ) -> Result<Option<Cursor<'t, I::Model, I::Key>>, Error>
+    ) -> Result<Option<Cursor<'t, M, M::Key>>, Error>
     where
-        I::Key: Borrow<Q>,
+        M::Key: Borrow<Q>,
         Q: Serialize + ?Sized + 'a,
     {
         Ok(self
-            .index
+            .object_store
             .open_cursor(
                 <Option<Query>>::try_from(&key_range.into())?,
                 cursor_direction,
@@ -145,18 +185,30 @@ where
         &self,
         key_range: impl Into<KeyRange<'a, Q, UnboundedRange>>,
         cursor_direction: Option<CursorDirection>,
-    ) -> Result<Option<KeyCursor<'t, I::Model, I::Key>>, Error>
+    ) -> Result<Option<KeyCursor<'t, M, M::Key>>, Error>
     where
-        I::Key: Borrow<Q>,
+        M::Key: Borrow<Q>,
         Q: Serialize + ?Sized + 'a,
     {
         Ok(self
-            .index
+            .object_store
             .open_key_cursor(
                 <Option<Query>>::try_from(&key_range.into())?,
                 cursor_direction,
             )?
             .await?
             .map(|cursor| KeyCursor::new(cursor.into_managed(), self.transaction)))
+    }
+
+    /// Returns an [`Index`] for the given model index.
+    #[doc(hidden)]
+    pub fn index<I>(&self) -> Result<Index<'t, I>, Error>
+    where
+        I: ModelIndex<Model = M>,
+    {
+        Ok(Index::new(
+            self.object_store.index(I::NAME)?,
+            self.transaction,
+        ))
     }
 }

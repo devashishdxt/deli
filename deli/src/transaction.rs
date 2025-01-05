@@ -1,109 +1,63 @@
-use std::mem::take;
+use idb::{TransactionMode, TransactionResult};
 
-use idb::{Transaction as IdbTransaction, TransactionMode, TransactionResult};
+use crate::{
+    database::Database, error::Error, model::Model, object_store::ObjectStore,
+    transaction_builder::TransactionBuilder,
+};
 
-use crate::{Database, Error, Model, Store};
-
-/// Indexed db transaction
+/// Provides a transaction on a database. All reading and writing of data is done within transactions.
 #[derive(Debug)]
 pub struct Transaction {
-    stores: Vec<&'static str>,
-    write: bool,
-    transaction: IdbTransaction,
+    transaction: idb::Transaction,
 }
 
 impl Transaction {
-    /// Returns a builder for transaction
+    pub(crate) fn new(transaction: idb::Transaction) -> Self {
+        Self { transaction }
+    }
+
+    /// Creates a new [`TransactionBuilder`] with the given database.
     pub fn builder(database: &Database) -> TransactionBuilder<'_> {
         TransactionBuilder::new(database)
     }
 
-    /// Commits the transaction
-    pub async fn commit(self) -> Result<TransactionResult, Error> {
-        self.transaction.commit()?.await.map_err(Into::into)
+    /// Returns a list of the names of object stores in the transaction’s scope. For an upgrade transaction this is all
+    /// object stores in the database.
+    pub fn store_names(&self) -> Vec<String> {
+        self.transaction.store_names()
     }
 
-    /// Waits for transaction to finish
-    pub async fn done(self) -> Result<TransactionResult, Error> {
-        self.transaction.abort()?.await.map_err(Into::into)
+    /// Returns the mode the transaction was created with ("readonly" or "readwrite"), or "versionchange" for an upgrade
+    /// transaction.
+    pub fn mode(&self) -> Result<TransactionMode, Error> {
+        self.transaction.mode().map_err(Into::into)
     }
 
-    /// Aborts the transaction
-    pub async fn abort(self) -> Result<TransactionResult, Error> {
-        self.transaction.abort()?.await.map_err(Into::into)
-    }
-
-    /// Returns the stores in transaction
-    pub fn store_names(&self) -> &[&'static str] {
-        &self.stores
-    }
-
-    /// Returns true if the current transaction has write mode enabled
-    pub fn is_write(&self) -> bool {
-        self.write
-    }
-
-    /// Returns a store for a model
-    pub fn store<M>(&self) -> Result<Store<'_, M>, Error>
+    /// Returns an [`ObjectStore`] for a model in transaction's scope.
+    pub fn object_store<M>(&self) -> Result<ObjectStore<'_, M>, Error>
     where
         M: Model,
     {
         self.transaction
             .object_store(M::NAME)
-            .map(|object_store| Store::new(self, object_store))
+            .map(|object_store| ObjectStore::new(object_store, self))
             .map_err(Into::into)
     }
-}
 
-/// Builder for indexed db transactions
-#[derive(Debug)]
-pub struct TransactionBuilder<'a> {
-    database: &'a Database,
-    write: bool,
-    stores: Vec<&'static str>,
-}
-
-impl<'a> TransactionBuilder<'a> {
-    /// Creates a new transaction builder
-    pub fn new(database: &'a Database) -> Self {
-        Self {
-            database,
-            write: false,
-            stores: Default::default(),
-        }
+    /// Attempts to commit the transaction. All pending requests will be allowed to complete, but no new requests will
+    /// be accepted. This can be used to force a transaction to quickly finish, without waiting for pending requests to
+    /// fire success events before attempting to commit normally.
+    pub async fn commit(self) -> Result<TransactionResult, Error> {
+        self.transaction.commit()?.await.map_err(Into::into)
     }
 
-    /// Enables write mode on transaction
-    pub fn writable(&mut self) -> &mut Self {
-        self.write = true;
-        self
+    /// Aborts the transaction. All pending requests will fail and all changes made to the database will be reverted.
+    pub async fn abort(self) -> Result<TransactionResult, Error> {
+        self.transaction.abort()?.await.map_err(Into::into)
     }
 
-    /// Adds a model to transaction
-    pub fn with_model<M>(&mut self) -> &mut Self
-    where
-        M: Model,
-    {
-        self.stores.push(M::NAME);
-        self
-    }
-
-    /// Builds the transaction
-    pub fn build(&mut self) -> Result<Transaction, Error> {
-        let database = self.database.database();
-
-        let mode = if self.write {
-            TransactionMode::ReadWrite
-        } else {
-            TransactionMode::ReadOnly
-        };
-
-        let transaction = database.transaction(&self.stores, mode)?;
-
-        Ok(Transaction {
-            stores: take(&mut self.stores),
-            write: self.write,
-            transaction,
-        })
+    /// Waits for the transaction to complete and returns the result.
+    pub async fn done(self) -> Result<TransactionResult, Error> {
+        self.transaction.await.map_err(Into::into)
     }
 }
